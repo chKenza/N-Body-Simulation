@@ -1,6 +1,13 @@
 #include <iostream>
 #include <vector>
 #include <cmath>
+#include <climits>
+#include <thread>
+#include <numeric>
+#include <iterator>
+#include <optional>
+#include <vector>
+#include <chrono>
 
 // Structure of the body: mass, coordinates, velocity, force
 struct Body {
@@ -70,7 +77,7 @@ public:
     }
 
     // update components 
-    void updatePositions() {
+    void updatePositionsSeq() {
         for (auto& body : bodies) {
             // acceleration
             double ax = body.fx / body.mass;
@@ -84,10 +91,49 @@ public:
         }
     }
 
+    static void updatePositionsThread(int start, int end, double dt, std::vector<Body>& bodies) {
+        for (int i = start; i < end; ++i) {
+            double ax = bodies[i].fx / bodies[i].mass;
+            double ay = bodies[i].fy / bodies[i].mass;
+            bodies[i].vx += ax * dt;
+            bodies[i].vy += ay * dt;
+            bodies[i].x += bodies[i].vx * dt;
+            bodies[i].y += bodies[i].vy * dt;
+        }
+    }
+    
+    void updatePositionsParallel(size_t num_threads) {
+        size_t length = bodies.size();
+        if (length == 0) {
+            return;
+        }
+    
+        size_t block_size = length / num_threads;
+        std::vector<std::thread> workers(num_threads - 1);
+    
+        size_t start_block = 0;
+        for (size_t i = 0; i < num_threads - 1; ++i) {
+            size_t end_block = start_block + block_size;
+            workers[i] = std::thread(&NBodySimulation::updatePositionsThread, start_block, end_block, dt, std::ref(bodies));
+            start_block = end_block;
+        }
+
+        updatePositionsThread(start_block, length, dt, bodies);
+    
+        for (size_t i = 0; i < workers.size(); ++i) {
+            workers[i].join();
+        }
+    }
+
     // one step of the simulation
-    void step() {
+
+    void stepSequential() {
         computeForces();
-        updatePositions();
+        updatePositionsSeq();
+    }
+    void stepParallel(size_t num_threads) {
+        computeForces();
+        updatePositionsParallel(num_threads);
     }
 
     const std::vector<Body>& getBodies() const {
@@ -97,32 +143,57 @@ public:
 
 const double G = 6.67430e-11;
 const double dt = 10000;
+const double epsilon = 1e-6;
+
+bool compareBodies(const std::vector<Body>& a, const std::vector<Body>& b) {
+    if (a.size() != b.size()) return false;
+    for (size_t i = 0; i < a.size(); ++i) {
+        if (std::abs(a[i].x - b[i].x) > epsilon ||
+            std::abs(a[i].y - b[i].y) > epsilon ||
+            std::abs(a[i].vx - b[i].vx) > epsilon ||
+            std::abs(a[i].vy - b[i].vy) > epsilon) {
+            return false;
+        }
+    }
+    return true;
+}
 
 int main() {
     // create simulation
-    NBodySimulation sim(G, dt);
+    NBodySimulation sim_seq(G, dt);
+    NBodySimulation sim_par(G, dt);
+
     // Add bodies
     // center body (similar to the sun)
-    sim.addBody(1.989e30, 0.0, 0.0, 0.0, 0.0);
-    
+    sim_seq.addBody(1.989e30, 0.0, 0.0, 0.0, 0.0); 
     // similar to earth
-    sim.addBody(5.972e24, 1.49e11, 0.0, 0.0, 29800.0);
-    
+    sim_seq.addBody(5.972e24, 1.49e11, 0.0, 0.0, 29800.0);
     // similar to mars
-    sim.addBody(6.39e23, 2.28e11, 0.0, 0.0, 24100.0);
+    sim_seq.addBody(6.39e23, 2.28e11, 0.0, 0.0, 24100.0);
     
-    // Simulate
+    sim_par.addBody(1.989e30, 0.0, 0.0, 0.0, 0.0);
+    sim_par.addBody(5.972e24, 1.49e11, 0.0, 0.0, 29800.0);
+    sim_par.addBody(6.39e23, 2.28e11, 0.0, 0.0, 24100.0);
+
+    const size_t num_threads = 4;
+
+
+    // simulate
+
     for (int step = 0; step <= 1000; ++step) {
-        sim.step();
-        
+        sim_seq.stepSequential();
+        sim_par.stepParallel(num_threads);
+
         if (step % 100 == 0) {
             std::cout << "Step " << step << ":\n";
-            const auto& bodies = sim.getBodies();
-            for (size_t i = 0; i < bodies.size(); ++i) {
-                std::cout << "Body " << i << ": ("
-                          << bodies[i].x << ", " << bodies[i].y << ")\n";
+            const auto& bodies_seq = sim_seq.getBodies();
+            const auto& bodies_par = sim_par.getBodies();
+            for (size_t i = 0; i < bodies_seq.size(); ++i) {
+                std::cout << "Body " << i << " (Seq): (" << bodies_seq[i].x << ", " << bodies_seq[i].y << ")\n";
+                std::cout << "Body " << i << " (Par): (" << bodies_par[i].x << ", " << bodies_par[i].y << ")\n";
             }
-            std::cout << "\n";
+            //bool same = compareBodies(bodies_seq, bodies_par);
+            //std::cout << (same) << std::endl;
         }
     }
     
