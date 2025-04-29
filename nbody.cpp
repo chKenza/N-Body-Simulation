@@ -50,30 +50,33 @@ public:
 
         // Compute forces between each pair of bodies
         for (size_t i = 0; i < bodies.size(); ++i) {
-            for (size_t j = 0; j < bodies.size(); ++j) {
-                if (i != j) {
-                    // squared distances 
-                    double dx = bodies[j].x - bodies[i].x;
-                    double dy = bodies[j].y - bodies[i].y;
+            for (size_t j = i+1; j < bodies.size(); ++j) {
+                // squared distances 
+                double dx = bodies[j].x - bodies[i].x;
+                double dy = bodies[j].y - bodies[i].y;
                     
-                    double distSquared = dx*dx + dy*dy;
-                    if (distSquared == 0) {
-                        distSquared = 1e-10;
-                    }
-                    
-                    // force magnitude
-                    double force = G * bodies[i].mass * bodies[j].mass / distSquared;
-                    
-                    // force vectors
-                    double dist = sqrt(distSquared);
-                    double fx = force * dx / dist;
-                    double fy = force * dy / dist;
-
-                    bodies[i].fx += fx;
-                    bodies[i].fy += fy;
+                double distSquared = dx*dx + dy*dy;
+                if (distSquared == 0) {
+                    distSquared = 1e-10;
                 }
+                    
+                // force magnitude
+                double force = G * bodies[i].mass * bodies[j].mass / distSquared;
+                    
+                // force vectors
+                double dist = sqrt(distSquared);
+                double fx = force * dx / dist;
+                double fy = force * dy / dist;
+
+                // Newton's Third law
+                bodies[i].fx += fx;
+                bodies[i].fy += fy;
+                bodies[j].fx -= fx;
+                bodies[j].fy -= fy;
+
             }
         }
+
     }
 
     // update components 
