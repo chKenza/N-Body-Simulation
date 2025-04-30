@@ -23,7 +23,7 @@ class SimulationArea: public Gtk::DrawingArea {
             for (const auto& body : draw_data) {
                 double scaled_x = width / 2 + body.x / 1e9;
                 double scaled_y = height / 2 + body.y / 1e9;
-                cr->arc(scaled_x, scaled_y, 2.0, 0, 2 * M_PI);
+                cr->arc(scaled_x, scaled_y, 2.0, 0, 2 * G_PI);
                 cr->fill();
             }
 
@@ -71,3 +71,14 @@ class MainWindow: public Gtk::Window {
             if (sim_thread.joinable()) sim_thread.join();
         }
 };
+
+int main(int argc, char *argv[]) {
+    // Initialize GTK application
+    auto app = Gtk::Application::create(argc, argv);
+
+    // Create main window
+    MainWindow window;
+
+    // Run the application
+    return app->run(window);
+}

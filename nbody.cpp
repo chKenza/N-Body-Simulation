@@ -12,7 +12,7 @@
 #include "nbody.hpp"
 
 NBodySimulation::NBodySimulation(double gravitationalConstant, double timeStep) : G(gravitationalConstant), dt(timeStep) {}
-// Add a body
+
 void NBodySimulation::addBody(double mass, double x, double y, double vx, double vy) {
     Body body;
     body.mass = mass;
@@ -142,44 +142,44 @@ bool compareBodies(const std::vector<Body>& a, const std::vector<Body>& b) {
     return true;
 }
 
-int main() {
-    // create simulation
-    NBodySimulation sim_seq(G, dt);
-    NBodySimulation sim_par(G, dt);
+// int main() {
+//     // create simulation
+//     NBodySimulation sim_seq(G, dt);
+//     NBodySimulation sim_par(G, dt);
 
-    // Add bodies
-    // center body (similar to the sun)
-    sim_seq.addBody(1.989e30, 0.0, 0.0, 0.0, 0.0); 
-    // similar to earth
-    sim_seq.addBody(5.972e24, 1.49e11, 0.0, 0.0, 29800.0);
-    // similar to mars
-    sim_seq.addBody(6.39e23, 2.28e11, 0.0, 0.0, 24100.0);
+//     // Add bodies
+//     // center body (similar to the sun)
+//     sim_seq.addBody(1.989e30, 0.0, 0.0, 0.0, 0.0); 
+//     // similar to earth
+//     sim_seq.addBody(5.972e24, 1.49e11, 0.0, 0.0, 29800.0);
+//     // similar to mars
+//     sim_seq.addBody(6.39e23, 2.28e11, 0.0, 0.0, 24100.0);
     
-    sim_par.addBody(1.989e30, 0.0, 0.0, 0.0, 0.0);
-    sim_par.addBody(5.972e24, 1.49e11, 0.0, 0.0, 29800.0);
-    sim_par.addBody(6.39e23, 2.28e11, 0.0, 0.0, 24100.0);
+//     sim_par.addBody(1.989e30, 0.0, 0.0, 0.0, 0.0);
+//     sim_par.addBody(5.972e24, 1.49e11, 0.0, 0.0, 29800.0);
+//     sim_par.addBody(6.39e23, 2.28e11, 0.0, 0.0, 24100.0);
 
-    const size_t num_threads = 4;
+//     const size_t num_threads = 4;
 
 
-    // simulate
+//     // simulate
 
-    for (int step = 0; step <= 1000; ++step) {
-        sim_seq.stepSequential();
-        sim_par.stepParallel(num_threads);
+//     for (int step = 0; step <= 1000; ++step) {
+//         sim_seq.stepSequential();
+//         sim_par.stepParallel(num_threads);
 
-        if (step % 100 == 0) {
-            std::cout << "Step " << step << ":\n";
-            const auto& bodies_seq = sim_seq.getBodies();
-            const auto& bodies_par = sim_par.getBodies();
-            for (size_t i = 0; i < bodies_seq.size(); ++i) {
-                std::cout << "Body " << i << " (Seq): (" << bodies_seq[i].x << ", " << bodies_seq[i].y << ")\n";
-                std::cout << "Body " << i << " (Par): (" << bodies_par[i].x << ", " << bodies_par[i].y << ")\n";
-            }
-            //bool same = compareBodies(bodies_seq, bodies_par);
-            //std::cout << (same) << std::endl;
-        }
-    }
+//         if (step % 100 == 0) {
+//             std::cout << "Step " << step << ":\n";
+//             const auto& bodies_seq = sim_seq.getBodies();
+//             const auto& bodies_par = sim_par.getBodies();
+//             for (size_t i = 0; i < bodies_seq.size(); ++i) {
+//                 std::cout << "Body " << i << " (Seq): (" << bodies_seq[i].x << ", " << bodies_seq[i].y << ")\n";
+//                 std::cout << "Body " << i << " (Par): (" << bodies_par[i].x << ", " << bodies_par[i].y << ")\n";
+//             }
+//             //bool same = compareBodies(bodies_seq, bodies_par);
+//             //std::cout << (same) << std::endl;
+//         }
+//     }
     
-    return 0;
-}
+//     return 0;
+// }
