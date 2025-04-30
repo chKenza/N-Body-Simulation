@@ -2,12 +2,18 @@ CXX = g++
 CXXFLAGS = -std=c++11 -Wall -O2
 
 TARGET = nbody
-SRC = nbody.cpp
+OBJS = nbody.o sim.o
 
 all: $(TARGET)
 
-$(TARGET): $(SRC)
-	$(CXX) $(CXXFLAGS) -o $(TARGET) $(SRC)
+$(TARGET): $(OBJS)
+	$(CXX) $(CXXFLAGS) -o $(TARGET) $(OBJS)
+
+nbody.o: nbody.cpp nbody.hpp
+	$(CXX) $(CXXFLAGS) -c nbody.cpp
+
+sim.o: sim.cpp nbody.hpp
+	$(CXX) $(CXXFLAGS) -c sim.cpp
 
 clean:
-	rm -f $(TARGET)
+	rm -f $(TARGET) *.o
