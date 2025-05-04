@@ -25,6 +25,18 @@ public:
 
     void computeForces();
 
+    static void ComputeForcesThread(Body* bodies,
+        std::vector<double>& fx_arr,
+        std::vector<double>& fy_arr,
+        std::mutex& mtx,
+        size_t start,
+        size_t block_size,
+        double G,
+        size_t total_bodies);
+
+    void computeForcesParallel(size_t num_threads);
+
+
     void updatePositionsSeq();
 
     static void updatePositionsThread(int start, int end, double dt, std::vector<Body>& bodies);
