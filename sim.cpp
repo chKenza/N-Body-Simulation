@@ -6,6 +6,10 @@
 #include <atomic>
 #include <chrono>
 
+double random_double(double min, double max) {
+    return min + (max - min) * (rand() / (RAND_MAX + 1.0));
+}
+
 class SimulationArea: public Gtk::DrawingArea {
     public:
         std::vector<Body> draw_data;
@@ -24,7 +28,7 @@ class SimulationArea: public Gtk::DrawingArea {
             for (const auto& body : draw_data) {
                 double scaled_x = width / 2 + body.x / 1e9;
                 double scaled_y = height / 2 + body.y / 1e9;
-                cr->arc(scaled_x, scaled_y, 2.0 + 4.0 * (std::log10(body.mass) - 20.0) / 5.0, 0, 2 * G_PI);
+                cr->arc(scaled_x, scaled_y, 2.0 + 4.0 * (std::log10(body.mass) - 20.0) / 5.0, 0, 2 * G_PI); // Scaled size based on mass
                 cr->fill();
             }
 
@@ -51,10 +55,18 @@ class MainWindow: public Gtk::Window {
             sim.addBody(4.867e24, 1.082e11, 0.0, 0.0, 35000.0);    // Venus
             sim.addBody(5.972e24, 1.496e11, 0.0, 0.0, 29800.0);    // Earth
             sim.addBody(6.39e23, 2.279e11, 0.0, 0.0, 24100.0);     // Mars
-            sim.addBody(1.898e27, 7.785e11, 0.0, 0.0, 13070.0);    // Jupiter
-            sim.addBody(5.683e26, 1.433e12, 0.0, 0.0, 9690.0);     // Saturn
-            sim.addBody(8.681e25, 2.877e12, 0.0, 0.0, 6810.0);     // Uranus
-            sim.addBody(1.024e26, 4.503e12, 0.0, 0.0, 5430.0);     // Neptune
+            sim.addBody(1.898e27, 7.785e11/2, 0.0, 0.0, 13070.0);    // Jupiter
+            sim.addBody(5.683e26, 1.433e12/2, 0.0, 0.0, 9690.0);     // Saturn
+            sim.addBody(8.681e25, 2.877e12/2, 0.0, 0.0, 6810.0);     // Uranus
+            sim.addBody(1.024e26, 4.503e12/2, 0.0, 0.0, 5430.0);     // Neptune
+
+            // for (int i = 0; i < 12; ++i) {
+            //     double mass = random_double(1e22, 1e27);
+            //     double x = random_double(1e10, 1e12);
+            //     double vy = random_double(1e3, 1e4);
+        
+            //     sim.addBody(mass, x, 0.0, 0.0, vy);
+            // }
                     
             dispatcher.connect(sigc::mem_fun(*this, &MainWindow::on_simulation_step));
             show_all_children();
@@ -106,6 +118,16 @@ int main(int argc, char *argv[]) {
         sim_par.addBody(1.989e30, 0.0, 0.0, 0.0, 0.0);  // Sun-like body
         sim_par.addBody(5.972e24, 1.49e11, 0.0, 0.0, 29800.0);  // Earth-like body
         sim_par.addBody(6.39e23, 2.28e11, 0.0, 0.0, 24100.0);  // Mars-like body
+
+        // for (int i = 0; i < 30; ++i) {
+        //     double mass = random_double(1e22, 1e27);
+        //     double x = random_double(1e10, 1e12);
+        //     double vy = random_double(1e3, 1e4);
+    
+        //     sim_seq.addBody(mass, x, 0.0, 0.0, vy);
+        //     sim_par.addBody(mass, x, 0.0, 0.0, vy);
+        // }
+
 
         const size_t num_threads = 4;
 
