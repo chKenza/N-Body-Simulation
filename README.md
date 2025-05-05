@@ -4,3 +4,5 @@
  Use ./nbody to simulate in GTK
 
  Use ./nbody -comp to compare the sequential and the conccurent approaches' results
+
+ TODO: ./nbody -rand N with N a number of bodies

@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <thread>
+#include <mutex>
 
 // Structure representing a celestial body
 struct Body {
@@ -22,6 +23,8 @@ public:
     NBodySimulation(double gravitationalConstant, double timeStep);
 
     void addBody(double mass, double x, double y, double vx, double vy);
+
+    void addRandomBodies(size_t num_bodies, double mass_seed, double pos_seed, double vel_seed);
 
     void computeForces();
 

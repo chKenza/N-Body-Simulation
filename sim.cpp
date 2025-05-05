@@ -20,11 +20,11 @@ class SimulationArea: public Gtk::DrawingArea {
             cr->paint();
 
             // Draw each body from draw_data
-            cr->set_source_rgb(1, 1, 1);
+            cr->set_source_rgb(0.8, 0.3, 0.7);
             for (const auto& body : draw_data) {
                 double scaled_x = width / 2 + body.x / 1e9;
                 double scaled_y = height / 2 + body.y / 1e9;
-                cr->arc(scaled_x, scaled_y, 2.0, 0, 2 * G_PI);
+                cr->arc(scaled_x, scaled_y, 2.0 + 4.0 * (std::log10(body.mass) - 20.0) / 5.0, 0, 2 * G_PI);
                 cr->fill();
             }
 
@@ -80,9 +80,9 @@ class MainWindow: public Gtk::Window {
 };
 
 int main(int argc, char *argv[]) {
-
     // If no argument is provided, default to -sim
     std::string option = (argc < 2) ? "-sim" : argv[1];
+    std::string arg_opt = (argc < 3) ? "" : argv[2];
 
     if (option == "-sim") {
         auto app = Gtk::Application::create(argc, argv);
@@ -129,6 +129,9 @@ int main(int argc, char *argv[]) {
             }
         }
 
+        return 0;
+    } else if (option == "-rand" && arg_opt != ""){
+        std::cout << "-rand N flag is still not implemented." << std::endl;
         return 0;
     } else {
         std::cerr << "Invalid option: " << option << ". Use -comp or nothing." << std::endl;

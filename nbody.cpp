@@ -25,6 +25,17 @@ void NBodySimulation::addBody(double mass, double x, double y, double vx, double
     bodies.push_back(body);
 }
 
+void NBodySimulation::addRandomBodies(size_t num_bodies, double mass_seed, double pos_seed, double vel_seed) {
+    for (size_t i = 0; i < num_bodies; ++i) {
+        double mass = static_cast<double>(rand()) / RAND_MAX * mass_seed;
+        double x = static_cast<double>(rand()) / RAND_MAX * pos_seed;
+        double y = static_cast<double>(rand()) / RAND_MAX * pos_seed;
+        double vx = static_cast<double>(rand()) / RAND_MAX * vel_seed;
+        double vy = static_cast<double>(rand()) / RAND_MAX * vel_seed;
+        addBody(mass, x, y, vx, vy);
+    }
+}
+
 // Compute forces between bodies
 void NBodySimulation::computeForces() {
     // Reset forces
@@ -218,12 +229,12 @@ const std::vector<Body>& NBodySimulation::getBodies() const {
 
 
 const double G = 6.67430e-11;
-const double dt = 10000;
+const double dt = 100000;  // Vary timestep to see diff evolutions
 
 bool compareBodies(const std::vector<Body>& a, const std::vector<Body>& b) {
     const double epsilon = 1e-6;
     if (a.size() != b.size()) return false;
-    for (size_t i = 0; i < a.size(); ++i) {
+    for (size_t i = 0; i < a.size(); ++i) { 
         if (std::abs(a[i].x - b[i].x) > epsilon ||
             std::abs(a[i].y - b[i].y) > epsilon ||
             std::abs(a[i].vx - b[i].vx) > epsilon ||
