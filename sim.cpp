@@ -5,6 +5,8 @@
 #include <vector>
 #include <atomic>
 #include <chrono>
+#include <string>
+#include <cstdlib>
 
 double random_double(double min, double max) {
     return min + (max - min) * (rand() / (RAND_MAX + 1.0));
@@ -16,16 +18,14 @@ class SimulationArea: public Gtk::DrawingArea {
 
     protected:
         bool on_draw(const Cairo::RefPtr<Cairo::Context>& cr) override {
-            // Clear background
             Gtk::Allocation allocation = get_allocation();
             int width = allocation.get_width();
             int height = allocation.get_height();
             cr->set_source_rgb(0, 0, 0);
             cr->paint();
 
-            // Draw each body from draw_data
-            cr->set_source_rgb(0.8, 0.3, 0.7);
             for (const auto& body : draw_data) {
+                cr->set_source_rgb(body.r, body.g, body.b);
                 double scaled_x = width / 2 + body.x / 1e9;
                 double scaled_y = height / 2 + body.y / 1e9;
                 cr->arc(scaled_x, scaled_y, 2.0 + 4.0 * (std::log10(body.mass) - 20.0) / 5.0, 0, 2 * G_PI); // Scaled size based on mass
@@ -44,29 +44,21 @@ class MainWindow: public Gtk::Window {
     std::atomic<bool> running;
 
     public:
-        MainWindow() : sim(G, dt), running(true) {
+        MainWindow(int sim_type = 1, int random_bodies = 0) : sim(G, dt), running(true) {
             set_title("N-Body Simulation");
             set_default_size(800, 600);
             add(area);
         
-            // Add bodies
-            sim.addBody(1.989e30, 0.0, 0.0, 0.0, 0.0);             // Sun
-            sim.addBody(3.285e23, 5.79e10, 0.0, 0.0, 47400.0);     // Mercury
-            sim.addBody(4.867e24, 1.082e11, 0.0, 0.0, 35000.0);    // Venus
-            sim.addBody(5.972e24, 1.496e11, 0.0, 0.0, 29800.0);    // Earth
-            sim.addBody(6.39e23, 2.279e11, 0.0, 0.0, 24100.0);     // Mars
-            sim.addBody(1.898e27, 7.785e11/2, 0.0, 0.0, 13070.0);    // Jupiter
-            sim.addBody(5.683e26, 1.433e12/2, 0.0, 0.0, 9690.0);     // Saturn
-            sim.addBody(8.681e25, 2.877e12/2, 0.0, 0.0, 6810.0);     // Uranus
-            sim.addBody(1.024e26, 4.503e12/2, 0.0, 0.0, 5430.0);     // Neptune
-
-            // for (int i = 0; i < 12; ++i) {
-            //     double mass = random_double(1e22, 1e27);
-            //     double x = random_double(1e10, 1e12);
-            //     double vy = random_double(1e3, 1e4);
-        
-            //     sim.addBody(mass, x, 0.0, 0.0, vy);
-            // }
+            if (sim_type == 1) {
+                // Solar system 
+                setupSolarSystem();
+            } else if (sim_type == 3) {
+                // 3-body problem
+                setupThreeBody();
+            } else if (random_bodies > 0) {
+                // Random N bodies
+                setupRandomBodies(random_bodies);
+            }
                     
             dispatcher.connect(sigc::mem_fun(*this, &MainWindow::on_simulation_step));
             show_all_children();
@@ -74,15 +66,121 @@ class MainWindow: public Gtk::Window {
             sim_thread = std::thread([this]() {
                 while (running) {
                     sim.stepParallel(4);
-                    area.draw_data = sim.getBodies();  // copy for UI
-                    dispatcher.emit();                 // trigger redraw
+                    area.draw_data = sim.getBodies(); 
+                    dispatcher.emit();                
                     std::this_thread::sleep_for(std::chrono::milliseconds(30));
                 }
             });
         }
     
+        void setupSolarSystem() {
+            sim.addBody(1.989e30, 0.0, 0.0, 0.0, 0.0, 1.0, 0.84, 0.0);              // Sun
+            sim.addBody(3.285e23, 5.79e10, 0.0, 0.0, 47400.0, 0.55, 0.53, 0.52);    // Mercury
+            sim.addBody(4.867e24, 1.082e11, 0.0, 0.0, 35000.0, 0.90, 0.75, 0.35);   // Venus
+            sim.addBody(5.972e24, 1.496e11, 0.0, 0.0, 29800.0, 0.0, 0.5, 1.0);      // Earth
+            sim.addBody(6.39e23, 2.279e11, 0.0, 0.0, 24100.0, 0.8, 0.3, 0.1);       // Mars
+            sim.addBody(1.898e27, 7.785e11/2, 0.0, 0.0, 13070.0, 0.85, 0.52, 0.35); // Jupiter
+            sim.addBody(5.683e26, 1.433e12/2, 0.0, 0.0, 9690.0, 0.93, 0.82, 0.62);  // Saturn
+            sim.addBody(8.681e25, 2.877e12/2, 0.0, 0.0, 6810.0, 0.65, 0.85, 0.88);  // Uranus
+            sim.addBody(1.024e26, 4.503e12/2, 0.0, 0.0, 5430.0, 0.25, 0.41, 0.88);  // Neptune
+        }
+                
+        void setupThreeBody() {
+            // Classic three-body problem with three stars of similar mass
+            // in an equilateral triangle with small random velocity perturbations
+                    
+            double m = 1.5e27;
+            double d = 1.0e11;
+            double max_init_velocity = 1.0e3;
+            
+            double colors[3][3] = {
+                {1.0, 0.0, 0.0},
+                {0.0, 1.0, 0.0},
+                {0.0, 0.0, 1.0}
+            };
+                    
+            for (int i = 0; i < 3; i++) {
+                double angle = i * (2.0 * G_PI / 3.0);
+                double x = d * cos(angle);
+                double y = d * sin(angle);
+                
+                double dev = random_double(-1.0e3, 1.0e3);
+                
+                sim.addBody(m + dev, x, y,
+                            random_double(-max_init_velocity, max_init_velocity),
+                            random_double(-max_init_velocity, max_init_velocity),
+                            colors[i][0], colors[i][1], colors[i][2]);
+            }
+        }        
+
+        void setupHexagonBodies() {
+            // Setup six bodies positioned at the vertices of a regular hexagon
+            // with small random velocity perturbations
+            
+            double m = 1.5e27;
+            double d = 1.0e11;
+            double max_init_velocity = 1.0e3;
+            
+            double colors[6][3] = {
+                {1.0, 0.0, 0.0},
+                {1.0, 0.5, 0.0},
+                {1.0, 1.0, 0.0},
+                {0.0, 1.0, 0.0},
+                {0.0, 0.0, 1.0},
+                {0.5, 0.0, 0.5} 
+            };
+            
+            // Create six bodies positioned at the vertices of a regular hexagon
+            for (int i = 0; i < 6; i++) {
+                double angle = i * (2.0 * G_PI / 6.0);
+                double x = d * cos(angle);
+                double y = d * sin(angle);
+                
+                double dev = random_double(-1.0e3, 1.0e3);
+                
+                sim.addBody(m + dev, x, y,
+                            random_double(-max_init_velocity, max_init_velocity),
+                            random_double(-max_init_velocity, max_init_velocity),
+                            colors[i][0], colors[i][1], colors[i][2]);
+            }
+        }
+
+
+        void setupRandomBodies(int num_bodies) {
+            for (int i = 0; i < num_bodies; ++i) {
+                double mass = random_double(1e20, 1e31);
+                
+                double max_d = 1e12;
+                double x = random_double(-max_d, max_d);
+                double y = random_double(-max_d, max_d);
+                
+                double max_velocity = 5e4;
+                double vx = random_double(-max_velocity, max_velocity);     // Can't see, need to implement interaction with gtkmm window
+                double vy = random_double(-max_velocity, max_velocity);
+                
+
+                // Styling to see the big ones better
+
+                double brightness = 0.5 + 0.5 * (std::log10(mass) - 20.0) / 11.0;
+                brightness = std::min(1.0, std::max(0.0, brightness));
+                
+                double r = random_double(0.0, 1.0) * brightness + (1.0 - brightness) * 0.3;
+                double g = random_double(0.0, 1.0) * brightness + (1.0 - brightness) * 0.3;
+                double b = random_double(0.0, 1.0) * brightness + (1.0 - brightness) * 0.3;
+                
+                if (mass > 1e29) {
+                    r = 1.0;
+                    g = random_double(0.7, 1.0);
+                    b = random_double(0.0, 0.5);
+                }
+        
+                sim.addBody(mass, x, y, vx, vy, r, g, b);
+            }
+        }
+        
+        
         void on_simulation_step() {
-            area.queue_draw();  // ask GTK to redraw with latest copy
+            area.queue_draw();
         }
     
         ~MainWindow() {
@@ -91,72 +189,144 @@ class MainWindow: public Gtk::Window {
         }
 };
 
+void runComparison() {
+    const double G = 6.67430e-11;
+    const double dt = 10000;
+
+    NBodySimulation sim_seq(G, dt);
+    NBodySimulation sim_par(G, dt);
+
+    sim_seq.addBody(1.989e30, 0.0, 0.0, 0.0, 0.0);  // Sun
+    sim_seq.addBody(5.972e24, 1.49e11, 0.0, 0.0, 29800.0);  // Earth
+    sim_seq.addBody(6.39e23, 2.28e11, 0.0, 0.0, 24100.0);  // Mars
+
+    sim_par.addBody(1.989e30, 0.0, 0.0, 0.0, 0.0);  // Sun
+    sim_par.addBody(5.972e24, 1.49e11, 0.0, 0.0, 29800.0);  // Earth
+    sim_par.addBody(6.39e23, 2.28e11, 0.0, 0.0, 24100.0);  // Mars
+
+    for (int i = 0; i < 30; ++i) {
+        double mass = random_double(1e22, 1e27);
+        double x = random_double(1e10, 1e12);
+        double vy = random_double(1e3, 1e4);
+        double r = random_double(0.0, 1.0);
+        double g = random_double(0.0, 1.0);
+        double b = random_double(0.0, 1.0);
+
+        sim_seq.addBody(mass, x, 0.0, 0.0, vy, r, g, b);
+        sim_par.addBody(mass, x, 0.0, 0.0, vy, r, g, b);
+    }
+
+    const size_t num_threads = 4;
+
+    for (int step = 0; step <= 1000; ++step) {
+        sim_seq.stepSequential();
+        sim_par.stepParallel(num_threads);
+
+        if (step % 100 == 0) {
+            std::cout << "Step " << step << ":\n";
+            const auto& bodies_seq = sim_seq.getBodies();
+            const auto& bodies_par = sim_par.getBodies();
+
+            bool same = compareBodies(bodies_seq, bodies_par);
+            std::cout << (same ? "Bodies are identical" : "Bodies are different") << std::endl;
+            std::cout << ("----------------------------------------") << std::endl;
+        }
+    }
+}
+
 int main(int argc, char *argv[]) {
-    // If no argument is provided, default to -sim
-    std::string option = (argc < 2) ? "-sim" : argv[1];
-    std::string arg_opt = (argc < 3) ? "" : argv[2];
-
-    if (option == "-sim") {
-        auto app = Gtk::Application::create(argc, argv);
-        MainWindow window;
-        return app->run(window);
-
-    } else if (option == "-comp") {
-        // In case of -comp, run the N-body simulation
-        const double G = 6.67430e-11;  // gravitational constant (m^3 kg^-1 s^-2)
-        const double dt = 10000;  // time step (s)
-        // const double epsilon = 1e-6;
-
-        NBodySimulation sim_seq(G, dt);
-        NBodySimulation sim_par(G, dt);
-
-        // Add bodies (same as before)
-        sim_seq.addBody(1.989e30, 0.0, 0.0, 0.0, 0.0);  // Sun-like body
-        sim_seq.addBody(5.972e24, 1.49e11, 0.0, 0.0, 29800.0);  // Earth-like body
-        sim_seq.addBody(6.39e23, 2.28e11, 0.0, 0.0, 24100.0);  // Mars-like body
-
-        sim_par.addBody(1.989e30, 0.0, 0.0, 0.0, 0.0);  // Sun-like body
-        sim_par.addBody(5.972e24, 1.49e11, 0.0, 0.0, 29800.0);  // Earth-like body
-        sim_par.addBody(6.39e23, 2.28e11, 0.0, 0.0, 24100.0);  // Mars-like body
-
-        // for (int i = 0; i < 30; ++i) {
-        //     double mass = random_double(1e22, 1e27);
-        //     double x = random_double(1e10, 1e12);
-        //     double vy = random_double(1e3, 1e4);
+    // Process args before GTK to avoid errors
+    int sim_type = 1;  // Default to solar system
+    int random_bodies = 0;
+    bool run_comp = false;
+    bool show_help = false;
     
-        //     sim_seq.addBody(mass, x, 0.0, 0.0, vy);
-        //     sim_par.addBody(mass, x, 0.0, 0.0, vy);
-        // }
-
-
-        const size_t num_threads = 4;
-
-        // Simulate
-        for (int step = 0; step <= 1000; ++step) {
-            sim_seq.stepSequential();
-            sim_par.stepParallel(num_threads);
-
-            if (step % 100 == 0) {
-                std::cout << "Step " << step << ":\n";
-                const auto& bodies_seq = sim_seq.getBodies();
-                const auto& bodies_par = sim_par.getBodies();
-                for (size_t i = 0; i < bodies_seq.size(); ++i) {
-                    std::cout << "Body " << i << " (Seq): (" << bodies_seq[i].x << ", " << bodies_seq[i].y << ")\n";
-                    std::cout << "Body " << i << " (Par): (" << bodies_par[i].x << ", " << bodies_par[i].y << ")\n";
-                }
-
-                bool same = compareBodies(bodies_seq, bodies_par);
-                std::cout << (same ? "Bodies are the same" : "Bodies are different") << std::endl;
-                std::cout << ("----------------------------------------") << std::endl;
+    for (int i = 1; i < argc; i++) {
+        std::string arg = argv[i];
+        
+        if (arg == "-sim1") {
+            sim_type = 1;
+            for(int j = i; j < argc-1; j++) {
+                argv[j] = argv[j+1];
             }
+            argc--;
+            i--;
+        }
+        else if (arg == "-sim3") {
+            sim_type = 3;
+            for(int j = i; j < argc-1; j++) {
+                argv[j] = argv[j+1];
+            }
+            argc--;
+            i--;
+        }
+        else if (arg == "-sim6") {
+            sim_type = 6;
+            for(int j = i; j < argc-1; j++) {
+                argv[j] = argv[j+1];
+            }
+            argc--;
+            i--;
         }
 
+        else if (arg == "-comp") {
+            run_comp = true;
+            for(int j = i; j < argc-1; j++) {
+                argv[j] = argv[j+1];
+            }
+            argc--;
+            i--;
+        }
+        else if (arg == "-rand" && i+1 < argc) {
+            try {
+                random_bodies = std::stoi(argv[i+1]);
+                if (random_bodies <= 0) {
+                    std::cerr << "Cannot have negative number of bodies." << std::endl;
+                    show_help = true;
+                    break;
+                }
+                
+                for(int j = i; j < argc-2; j++) {
+                    argv[j] = argv[j+2];
+                }
+                argc -= 2;
+                i--;
+            }
+            catch (const std::exception& e) {
+                std::cerr << "Error parsing number of bodies: " << e.what() << std::endl;
+                show_help = true;
+                break;
+            }
+        }
+        else if (arg == "-help") {
+            show_help = true;
+        }
+    }
+    
+    if (show_help) {
+        std::cout << "Usage: " << argv[0] << " [OPTION]" << std::endl;
+        std::cout << "Options:" << std::endl;
+        std::cout << "  |  -sim1       Solar System Simulation (DEFAULT)" << std::endl;
+        std::cout << "  |  -sim3       3 Body Simulation" << std::endl;
+        std::cout << "  |  -sim6       [BROKEN] 6 Body Simulation" << std::endl;
+        std::cout << "  |  -comp       Comparison Sequential & Parallel on Solar System" << std::endl;
+        std::cout << "  |  -rand N     Simulation with N random bodies" << std::endl;
+        std::cout << "  |  -help       Show this Help" << std::endl;
         return 0;
-    } else if (option == "-rand" && arg_opt != ""){
-        std::cout << "-rand N flag is still not implemented." << std::endl;
+    }
+    
+    if (run_comp) {
+        runComparison();
         return 0;
-    } else {
-        std::cerr << "Invalid option: " << option << ". Use -comp or nothing." << std::endl;
-        return 1;
+    }
+    else if (random_bodies > 0) {
+        auto app = Gtk::Application::create(argc, argv);
+        MainWindow window(0, random_bodies); 
+        return app->run(window);
+    }
+    else {
+        auto app = Gtk::Application::create(argc, argv);
+        MainWindow window(sim_type);
+        return app->run(window);
     }
 }

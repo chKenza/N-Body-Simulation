@@ -3,6 +3,7 @@
 #include <climits>
 #include <thread>
 #include <numeric>
+#include <iostream>
 #include <iterator>
 #include <optional>
 #include <vector>
@@ -12,7 +13,7 @@
 
 NBodySimulation::NBodySimulation(double gravitationalConstant, double timeStep) : G(gravitationalConstant), dt(timeStep) {}
 
-void NBodySimulation::addBody(double mass, double x, double y, double vx, double vy) {
+void NBodySimulation::addBody(double mass, double x, double y, double vx, double vy, double r, double g, double b) {
     Body body;
     body.mass = mass;
     body.x = x;
@@ -21,19 +22,11 @@ void NBodySimulation::addBody(double mass, double x, double y, double vx, double
     body.vy = vy;
     body.fx = 0.0;
     body.fy = 0.0;
+    body.r = r;
+    body.g = g;
+    body.b = b;
     
     bodies.push_back(body);
-}
-
-void NBodySimulation::addRandomBodies(size_t num_bodies, double mass_seed, double pos_seed, double vel_seed) {
-    for (size_t i = 0; i < num_bodies; ++i) {
-        double mass = static_cast<double>(rand()) / RAND_MAX * mass_seed;
-        double x = static_cast<double>(rand()) / RAND_MAX * pos_seed;
-        double y = static_cast<double>(rand()) / RAND_MAX * pos_seed;
-        double vx = static_cast<double>(rand()) / RAND_MAX * vel_seed;
-        double vy = static_cast<double>(rand()) / RAND_MAX * vel_seed;
-        addBody(mass, x, y, vx, vy);
-    }
 }
 
 // Compute forces between bodies
@@ -146,7 +139,7 @@ void NBodySimulation::computeForcesParallel(size_t num_threads) {
     }
 
 
-    ComputeForcesThread(bodies.data(), fx_arr, fy_arr, mtx, start_block, N, G, N);
+    ComputeForcesThread(bodies.data(), std::ref(fx_arr), std::ref(fy_arr), std::ref(mtx), start_block, N, G, N);
 
     for (size_t i = 0; i < workers.size(); ++i) {
         workers[i].join();
@@ -175,8 +168,8 @@ void NBodySimulation::updatePositionsSeq() {
     }
 }
 
-void NBodySimulation::updatePositionsThread(int start, int end, double dt, std::vector<Body>& bodies) {
-    for (int i = start; i < end; ++i) {
+void NBodySimulation::updatePositionsThread(size_t start, size_t end, double dt, std::vector<Body>& bodies) {
+    for (size_t i = start; i < end; ++i) {
         double ax = bodies[i].fx / bodies[i].mass;
         double ay = bodies[i].fy / bodies[i].mass;
         bodies[i].vx += ax * dt;
@@ -239,6 +232,13 @@ bool compareBodies(const std::vector<Body>& a, const std::vector<Body>& b) {
             std::abs(a[i].y - b[i].y) > epsilon ||
             std::abs(a[i].vx - b[i].vx) > epsilon ||
             std::abs(a[i].vy - b[i].vy) > epsilon) {
+                
+            std::cout << "Bodies differ at index " << i << std::endl;
+            std::cout << "Diff x " << std::abs(a[i].x - b[i].x) << std::endl;
+            std::cout << "Diff y " << std::abs(a[i].y - b[i].y) << std::endl;
+            std::cout << "Diff vx " << std::abs(a[i].vx - b[i].vx) << std::endl;
+            std::cout << "Diff vy " << std::abs(a[i].vy - b[i].vy) << std::endl;
+
             return false;
         }
     }

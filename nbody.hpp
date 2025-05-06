@@ -11,6 +11,7 @@ struct Body {
     double x, y;
     double vx, vy;
     double fx, fy;
+    double r, g, b;
 };
 
 class NBodySimulation {
@@ -22,10 +23,8 @@ private:
 public:
     NBodySimulation(double gravitationalConstant, double timeStep);
 
-    void addBody(double mass, double x, double y, double vx, double vy);
-
-    void addRandomBodies(size_t num_bodies, double mass_seed, double pos_seed, double vel_seed);
-
+    void addBody(double mass, double x, double y, double vx, double vy, double r = 1.0, double g = 1.0, double b = 1.0);
+    
     void computeForces();
 
     static void ComputeForcesThread(Body* bodies,
@@ -42,7 +41,7 @@ public:
 
     void updatePositionsSeq();
 
-    static void updatePositionsThread(int start, int end, double dt, std::vector<Body>& bodies);
+    static void updatePositionsThread(size_t start, size_t end, double dt, std::vector<Body>& bodies);
 
     void updatePositionsParallel(size_t num_threads);
 
