@@ -147,8 +147,9 @@ class MainWindow: public Gtk::Window {
 
 
         void setupRandomBodies(int num_bodies) {
+            // sim.addBody(1.989e30, 0.0, 0.0, 0.0, 0.0, 1.0, 0.84, 0.0); // Sun
             for (int i = 0; i < num_bodies; ++i) {
-                double mass = random_double(1e20, 1e31);
+                double mass = random_double(1e20, 1e28);
                 
                 double max_d = 1e12;
                 double x = random_double(-max_d, max_d);
@@ -321,12 +322,12 @@ int main(int argc, char *argv[]) {
     }
     else if (random_bodies > 0) {
         auto app = Gtk::Application::create(argc, argv);
-        MainWindow window(0, random_bodies); 
+        MainWindow window(0, random_bodies); // Random bodies Sim
         return app->run(window);
     }
     else {
         auto app = Gtk::Application::create(argc, argv);
-        MainWindow window(sim_type);
+        MainWindow window(sim_type);         // General Sims
         return app->run(window);
     }
 }
