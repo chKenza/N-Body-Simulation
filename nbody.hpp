@@ -20,11 +20,14 @@ private:
     double G;   // Gravitational constant
     double dt;  // Time step
 
+
 public:
     NBodySimulation(double gravitationalConstant, double timeStep);
 
     void addBody(double mass, double x, double y, double vx, double vy, double r = 1.0, double g = 1.0, double b = 1.0);
     
+    void setTimeStep(double new_dt);
+
     void computeForces();
 
     static void ComputeForcesThread(Body* bodies,
@@ -53,7 +56,7 @@ public:
 
 // Constants
 extern const double G;
-extern const double dt;
+extern double dt;
 extern const double epsilon;
 
 // Body comparison for testing

@@ -15,6 +15,11 @@ double random_double(double min, double max) {
 class SimulationArea: public Gtk::DrawingArea {
     public:
         std::vector<Body> draw_data;
+        double zoom_factor = 1.0;
+
+        SimulationArea() {
+            add_events(Gdk::SCROLL_MASK | Gdk::KEY_PRESS_MASK | Gdk::BUTTON_PRESS_MASK);
+        }
 
     protected:
         bool on_draw(const Cairo::RefPtr<Cairo::Context>& cr) override {
@@ -34,7 +39,16 @@ class SimulationArea: public Gtk::DrawingArea {
 
             return true;
         }
-};
+
+        bool on_scroll_event(GdkEventScroll* scroll_event) override {
+            if (scroll_event->direction == GDK_SCROLL_UP) {
+                zoom_factor *= 10; // Zoom in
+            } else if (scroll_event->direction == GDK_SCROLL_DOWN) {
+                zoom_factor /= 10; // Zoom out
+            }
+            queue_draw();
+            return true;
+        }};
 
 class MainWindow: public Gtk::Window {
     NBodySimulation sim;
@@ -42,35 +56,81 @@ class MainWindow: public Gtk::Window {
     Glib::Dispatcher dispatcher;
     std::thread sim_thread;
     std::atomic<bool> running;
+    std::atomic<bool> paused;
+
+    Gtk::Box main_box;
+    Gtk::Box control_box;
+    Gtk::Label time_step_label;
+    Gtk::Button slower_button;
+    Gtk::Button faster_button;
+    Gtk::Button pause_button;
+    Gtk::Button zoom_in_button;
+    Gtk::Button zoom_out_button;
+    Gtk::Label zoom_label;
+    double dt_current;
 
     public:
-        MainWindow(int sim_type = 1, int random_bodies = 0) : sim(G, dt), running(true) {
+        MainWindow(int sim_type = 1, int random_bodies = 0) : 
+            sim(G, dt), 
+            running(true), 
+            paused(false),
+            main_box(Gtk::ORIENTATION_VERTICAL),
+            control_box(Gtk::ORIENTATION_HORIZONTAL, 5),
+            slower_button("Slower"),
+            faster_button("Faster"),
+            pause_button("Pause"),
+            zoom_in_button("Zoom In"),
+            zoom_out_button("Zoom Out"),
+            dt_current(dt)
+        {
             set_title("N-Body Simulation");
             set_default_size(800, 600);
-            add(area);
+    
+            add(main_box);
+            main_box.pack_start(control_box, Gtk::PACK_SHRINK);
+            main_box.pack_start(area, Gtk::PACK_EXPAND_WIDGET);
+    
+            control_box.pack_start(slower_button, Gtk::PACK_SHRINK);
+            control_box.pack_start(time_step_label, Gtk::PACK_SHRINK);
+            control_box.pack_start(faster_button, Gtk::PACK_SHRINK);
+            control_box.pack_start(pause_button, Gtk::PACK_SHRINK);
+            control_box.pack_start(zoom_out_button, Gtk::PACK_SHRINK);
+            control_box.pack_start(zoom_label, Gtk::PACK_SHRINK);
+            control_box.pack_start(zoom_in_button, Gtk::PACK_SHRINK);
         
+            slower_button.signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_slower_clicked));
+            faster_button.signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_faster_clicked));
+            pause_button.signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_pause_clicked));
+            zoom_in_button.signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_zoom_in_clicked));
+            zoom_out_button.signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_zoom_out_clicked));
+    
+            add_events(Gdk::KEY_PRESS_MASK);
+            signal_key_press_event().connect(sigc::mem_fun(*this, &MainWindow::on_key_press_event), false);
+
             if (sim_type == 1) {
-                // Solar system 
                 setupSolarSystem();
-            } else if (sim_type == 3) {
-                // 3-body problem
+         } else if (sim_type == 3) {
                 setupThreeBody();
+            } else if (sim_type == 6) {
+                setupHexagonBodies();
             } else if (random_bodies > 0) {
-                // Random N bodies
                 setupRandomBodies(random_bodies);
             }
-                    
+            
             dispatcher.connect(sigc::mem_fun(*this, &MainWindow::on_simulation_step));
             show_all_children();
-        
+
             sim_thread = std::thread([this]() {
                 while (running) {
-                    sim.stepParallel(4);
-                    area.draw_data = sim.getBodies(); 
-                    dispatcher.emit();                
+                    if (!paused) {
+                        sim.setTimeStep(dt_current);
+                        sim.stepParallel(4);
+                        area.draw_data = sim.getBodies(); 
+                        dispatcher.emit();
+                    }
                     std::this_thread::sleep_for(std::chrono::milliseconds(30));
                 }
-            });
+            });        
         }
     
         void setupSolarSystem() {
@@ -179,11 +239,56 @@ class MainWindow: public Gtk::Window {
             }
         }
         
+        void on_slower_clicked() {
+            dt_current /= 10;
+        }
+        
+        void on_faster_clicked() {
+            dt_current *= 10;
+        }
+        
+        void on_pause_clicked() {
+            paused = !paused;
+            pause_button.set_label(paused ? "Resume" : "Pause");
+        }
+        
+        void on_zoom_in_clicked() {
+            area.zoom_factor *= 10;
+            area.queue_draw();
+        }
+        
+        void on_zoom_out_clicked() {
+            area.zoom_factor /= 10;
+            area.queue_draw();
+        }
+        
+        
+        bool on_key_press_event(GdkEventKey* event) {
+            switch(event->keyval) {
+                case GDK_KEY_plus:
+                case GDK_KEY_equal:
+                    on_zoom_in_clicked();
+                    return true;
+                case GDK_KEY_minus:
+                    on_zoom_out_clicked();
+                    return true;
+                case GDK_KEY_space:
+                    on_pause_clicked();
+                    return true;
+                case GDK_KEY_Up:
+                    on_faster_clicked();
+                    return true;
+                case GDK_KEY_Down:
+                    on_slower_clicked();
+                    return true;
+            }
+            return false;
+        }
         
         void on_simulation_step() {
             area.queue_draw();
         }
-    
+
         ~MainWindow() {
             running = false;
             if (sim_thread.joinable()) sim_thread.join();

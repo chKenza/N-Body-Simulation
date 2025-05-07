@@ -29,6 +29,10 @@ void NBodySimulation::addBody(double mass, double x, double y, double vx, double
     bodies.push_back(body);
 }
 
+void NBodySimulation::setTimeStep(double new_dt) {
+    dt = new_dt;
+}
+
 // Compute forces between bodies
 void NBodySimulation::computeForces() {
     // Reset forces
@@ -222,7 +226,7 @@ const std::vector<Body>& NBodySimulation::getBodies() const {
 
 
 const double G = 6.67430e-11;
-const double dt = 100000;  // Vary timestep to see diff evolutions
+double dt = 1000000;
 
 bool compareBodies(const std::vector<Body>& a, const std::vector<Body>& b) {
     const double epsilon = 1e-6;
