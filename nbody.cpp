@@ -29,6 +29,10 @@ void NBodySimulation::addBody(double mass, double x, double y, double vx, double
     bodies.push_back(body);
 }
 
+void NBodySimulation::clear() {
+    bodies.clear();
+}
+
 void NBodySimulation::setTimeStep(double new_dt) {
     dt = new_dt;
 }
@@ -226,7 +230,7 @@ const std::vector<Body>& NBodySimulation::getBodies() const {
 
 
 const double G = 6.67430e-11;
-double dt = 1000000;
+double dt = 10000.0;
 
 bool compareBodies(const std::vector<Body>& a, const std::vector<Body>& b) {
     const double epsilon = 1e-6;

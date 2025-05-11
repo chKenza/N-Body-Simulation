@@ -25,6 +25,8 @@ public:
     NBodySimulation(double gravitationalConstant, double timeStep);
 
     void addBody(double mass, double x, double y, double vx, double vy, double r = 1.0, double g = 1.0, double b = 1.0);
+
+    void clear();
     
     void setTimeStep(double new_dt);
 

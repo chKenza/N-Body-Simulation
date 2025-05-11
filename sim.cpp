@@ -16,9 +16,16 @@ class SimulationArea: public Gtk::DrawingArea {
     public:
         std::vector<Body> draw_data;
         double zoom_factor = 1.0;
+        double offset_x = 0.0;
+        double offset_y = 0.0;
+        bool dragging = false;
+        double drag_start_x = 0.0;
+        double drag_start_y = 0.0;
 
         SimulationArea() {
-            add_events(Gdk::SCROLL_MASK | Gdk::KEY_PRESS_MASK | Gdk::BUTTON_PRESS_MASK);
+            add_events(Gdk::SCROLL_MASK | Gdk::KEY_PRESS_MASK | 
+                      Gdk::BUTTON_PRESS_MASK | Gdk::BUTTON_RELEASE_MASK | 
+                      Gdk::BUTTON_MOTION_MASK | Gdk::POINTER_MOTION_MASK);
         }
 
     protected:
@@ -31,9 +38,9 @@ class SimulationArea: public Gtk::DrawingArea {
 
             for (const auto& body : draw_data) {
                 cr->set_source_rgb(body.r, body.g, body.b);
-                double scaled_x = width / 2 + body.x / 1e9;
-                double scaled_y = height / 2 + body.y / 1e9;
-                cr->arc(scaled_x, scaled_y, 2.0 + 4.0 * (std::log10(body.mass) - 20.0) / 5.0, 0, 2 * G_PI); // Scaled size based on mass
+                double scaled_x = (width / 2 + body.x / 1e9 + offset_x) * zoom_factor;
+                double scaled_y = (height / 2 + body.y / 1e9 + offset_y) * zoom_factor;
+                cr->arc(scaled_x, scaled_y, (2.0 + 4.0 * (std::log10(body.mass) - 20.0) / 5.0) * zoom_factor, 0, 2 * G_PI); // Scaled size based on mass
                 cr->fill();
             }
 
@@ -42,13 +49,51 @@ class SimulationArea: public Gtk::DrawingArea {
 
         bool on_scroll_event(GdkEventScroll* scroll_event) override {
             if (scroll_event->direction == GDK_SCROLL_UP) {
-                zoom_factor *= 10; // Zoom in
+                zoom_factor *= 1.2; // Zoom in
             } else if (scroll_event->direction == GDK_SCROLL_DOWN) {
-                zoom_factor /= 10; // Zoom out
+                zoom_factor /= 1.2; // Zoom out
             }
             queue_draw();
             return true;
-        }};
+        }
+
+        bool on_button_press_event(GdkEventButton* button_event) override {
+            if (button_event->button == 1) { // Left mouse button
+                dragging = true;
+                drag_start_x = button_event->x;
+                drag_start_y = button_event->y;
+                return true;
+            }
+            return false;
+        }
+
+        bool on_button_release_event(GdkEventButton* button_event) override {
+            if (button_event->button == 1) { // Left mouse button
+                dragging = false;
+                return true;
+            }
+            return false;
+        }
+
+        bool on_motion_notify_event(GdkEventMotion* motion_event) override {
+            if (dragging) {
+                double dx = motion_event->x - drag_start_x;
+                double dy = motion_event->y - drag_start_y;
+                
+                // Update offset based on the drag distance
+                offset_x += dx / zoom_factor;
+                offset_y += dy / zoom_factor;
+                
+                // Reset drag start position
+                drag_start_x = motion_event->x;
+                drag_start_y = motion_event->y;
+                
+                queue_draw();
+                return true;
+            }
+            return false;
+        }
+};
 
 class MainWindow: public Gtk::Window {
     NBodySimulation sim;
@@ -66,8 +111,11 @@ class MainWindow: public Gtk::Window {
     Gtk::Button pause_button;
     Gtk::Button zoom_in_button;
     Gtk::Button zoom_out_button;
+    Gtk::Button reset_sim_button;
     Gtk::Label zoom_label;
     double dt_current;
+    int sim_type;
+    int random_bodies;
 
     public:
         MainWindow(int sim_type = 1, int random_bodies = 0) : 
@@ -81,7 +129,10 @@ class MainWindow: public Gtk::Window {
             pause_button("Pause"),
             zoom_in_button("Zoom In"),
             zoom_out_button("Zoom Out"),
-            dt_current(dt)
+            reset_sim_button("Reset"),
+            dt_current(dt),
+            sim_type(sim_type),
+            random_bodies(random_bodies)
         {
             set_title("N-Body Simulation");
             set_default_size(800, 600);
@@ -97,25 +148,19 @@ class MainWindow: public Gtk::Window {
             control_box.pack_start(zoom_out_button, Gtk::PACK_SHRINK);
             control_box.pack_start(zoom_label, Gtk::PACK_SHRINK);
             control_box.pack_start(zoom_in_button, Gtk::PACK_SHRINK);
+            control_box.pack_start(reset_sim_button, Gtk::PACK_SHRINK);
         
             slower_button.signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_slower_clicked));
             faster_button.signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_faster_clicked));
             pause_button.signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_pause_clicked));
             zoom_in_button.signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_zoom_in_clicked));
             zoom_out_button.signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_zoom_out_clicked));
+            reset_sim_button.signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_reset_sim_clicked));
     
             add_events(Gdk::KEY_PRESS_MASK);
             signal_key_press_event().connect(sigc::mem_fun(*this, &MainWindow::on_key_press_event), false);
 
-            if (sim_type == 1) {
-                setupSolarSystem();
-         } else if (sim_type == 3) {
-                setupThreeBody();
-            } else if (sim_type == 6) {
-                setupHexagonBodies();
-            } else if (random_bodies > 0) {
-                setupRandomBodies(random_bodies);
-            }
+            setup_sim(sim_type, random_bodies);
             
             dispatcher.connect(sigc::mem_fun(*this, &MainWindow::on_simulation_step));
             show_all_children();
@@ -131,6 +176,18 @@ class MainWindow: public Gtk::Window {
                     std::this_thread::sleep_for(std::chrono::milliseconds(30));
                 }
             });        
+        }
+
+        void setup_sim(int sim_type, int random_bodies){
+            if (sim_type == 1) {
+                setupSolarSystem();
+            } else if (sim_type == 3) {
+                setupThreeBody();
+            } else if (sim_type == 6) {
+                setupHexagonBodies();
+            } else if (random_bodies > 0) {
+                setupRandomBodies(random_bodies);
+            }
         }
     
         void setupSolarSystem() {
@@ -151,7 +208,7 @@ class MainWindow: public Gtk::Window {
                     
             double m = 1.5e27;
             double d = 1.0e11;
-            double max_init_velocity = 1.0e3;
+            double max_init_velocity = 4.0e3;
             
             double colors[3][3] = {
                 {1.0, 0.0, 0.0},
@@ -179,7 +236,7 @@ class MainWindow: public Gtk::Window {
             
             double m = 1.5e27;
             double d = 1.0e11;
-            double max_init_velocity = 1.0e3;
+            double max_init_velocity = 4.0e3;
             
             double colors[6][3] = {
                 {1.0, 0.0, 0.0},
@@ -207,7 +264,7 @@ class MainWindow: public Gtk::Window {
 
 
         void setupRandomBodies(int num_bodies) {
-            // sim.addBody(1.989e30, 0.0, 0.0, 0.0, 0.0, 1.0, 0.84, 0.0); // Sun
+            sim.addBody(1.989e30, 0.0, 0.0, 0.0, 0.0, 1.0, 0.84, 0.0); // Sun
             for (int i = 0; i < num_bodies; ++i) {
                 double mass = random_double(1e20, 1e28);
                 
@@ -216,7 +273,7 @@ class MainWindow: public Gtk::Window {
                 double y = random_double(-max_d, max_d);
                 
                 double max_velocity = 5e4;
-                double vx = random_double(-max_velocity, max_velocity);     // Can't see, need to implement interaction with gtkmm window
+                double vx = random_double(-max_velocity, max_velocity);
                 double vy = random_double(-max_velocity, max_velocity);
                 
 
@@ -241,10 +298,12 @@ class MainWindow: public Gtk::Window {
         
         void on_slower_clicked() {
             dt_current /= 10;
+            update_time_step_label();
         }
         
         void on_faster_clicked() {
             dt_current *= 10;
+            update_time_step_label();
         }
         
         void on_pause_clicked() {
@@ -253,15 +312,29 @@ class MainWindow: public Gtk::Window {
         }
         
         void on_zoom_in_clicked() {
-            area.zoom_factor *= 10;
+            area.zoom_factor *= 1.2;
+            update_zoom_label();
             area.queue_draw();
         }
         
         void on_zoom_out_clicked() {
-            area.zoom_factor /= 10;
+            area.zoom_factor /= 1.2;
+            update_zoom_label();
             area.queue_draw();
         }
         
+        void on_reset_sim_clicked() {
+            sim.clear();
+            setup_sim(sim_type, random_bodies);
+        }
+        
+        void update_time_step_label() {
+            time_step_label.set_text("Time Step: " + std::to_string(dt_current));
+        }
+        
+        void update_zoom_label() {
+            zoom_label.set_text("Zoom: " + std::to_string(area.zoom_factor).substr(0, 4) + "x");
+        }
         
         bool on_key_press_event(GdkEventKey* event) {
             switch(event->keyval) {
@@ -281,11 +354,16 @@ class MainWindow: public Gtk::Window {
                 case GDK_KEY_Down:
                     on_slower_clicked();
                     return true;
+                case GDK_KEY_r:
+                    on_reset_sim_clicked();
+                    return true;
             }
             return false;
         }
         
         void on_simulation_step() {
+            update_time_step_label();
+            update_zoom_label();
             area.queue_draw();
         }
 
