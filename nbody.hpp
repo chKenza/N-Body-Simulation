@@ -32,14 +32,16 @@ public:
 
     void computeForces();
 
-    static void ComputeForcesThread(Body* bodies,
+    void ComputeForcesThread(
+        Body* bodies,
         std::vector<double>& fx_arr,
         std::vector<double>& fy_arr,
-        std::mutex& mtx,
+        std::vector<std::mutex>& body_mutexes,
         size_t start,
-        size_t block_size,
+        size_t end,
         double G,
-        size_t total_bodies);
+        size_t total_bodies
+    );
 
     void computeForcesParallel(size_t num_threads);
 
