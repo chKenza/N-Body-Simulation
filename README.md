@@ -5,7 +5,7 @@
 
  Use ./nbody -sim3 to simulate a 3 body problem
 
- [TODO] Use ./nbody -sim6 to simulate a 6 body problem
+ Use ./nbody -sim6 to simulate a 6 body problem
 
  Use ./nbody -comp to compare the sequential and the conccurent approaches' results
 
