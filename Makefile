@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -std=c++11 -Wall -O2
+CXXFLAGS = -std=c++20 -Wall -O2
 GTKFLAGS = pkg-config --cflags gtkmm-3.0
 GTKLIBS = pkg-config --libs gtkmm-3.0
 
