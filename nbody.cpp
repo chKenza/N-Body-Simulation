@@ -73,7 +73,7 @@ void NBodySimulation::computeForces() {
     }
 }
 
-void NBodySimulation::ComputeForcesThread(
+void NBodySimulation::ComputeForcesThreadAtomic(
     Body* bodies,
     std::vector<std::atomic<double>>& fx_arr,
     std::vector<std::atomic<double>>& fy_arr,
@@ -105,7 +105,7 @@ void NBodySimulation::ComputeForcesThread(
 }
 
 
-void NBodySimulation::computeForcesParallel(size_t num_threads) {
+void NBodySimulation::computeForcesParallelAtomic(size_t num_threads) {
     size_t N = bodies.size();
     if (N == 0){
         return; 
@@ -130,7 +130,7 @@ void NBodySimulation::computeForcesParallel(size_t num_threads) {
     for (size_t i = 0; i < num_threads-1; ++i) {
         size_t end_block = std::min(start_block + block_size, N);
 
-        workers[i] = std::thread(&NBodySimulation::ComputeForcesThread,
+        workers[i] = std::thread(&NBodySimulation::ComputeForcesThreadAtomic,
                                 this,
                                 bodies.data(),
                                 std::ref(fx_arr),
@@ -142,7 +142,7 @@ void NBodySimulation::computeForcesParallel(size_t num_threads) {
         start_block = end_block;
     }
 
-    ComputeForcesThread(bodies.data(), std::ref(fx_arr), std::ref(fy_arr), start_block, N, G, N);
+    ComputeForcesThreadAtomic(bodies.data(), std::ref(fx_arr), std::ref(fy_arr), start_block, N, G, N);
 
     for (size_t i = 0; i < workers.size(); ++i) {
         workers[i].join();
@@ -151,6 +151,91 @@ void NBodySimulation::computeForcesParallel(size_t num_threads) {
     for (size_t i = 0; i < N; ++i) {
         bodies[i].fx = fx_arr[i];
         bodies[i].fy = fy_arr[i];
+    }
+}
+
+
+void NBodySimulation::ComputeForcesThreadNonAtomic(
+    Body* bodies,
+    std::vector<std::vector<double>>& local_fx,
+    std::vector<std::vector<double>>& local_fy,
+    size_t start,
+    size_t end,
+    double G,
+    size_t total_bodies,
+    int thread_id
+) {
+    for (size_t i = start; i < end; ++i) {
+        for (size_t j = i + 1; j < total_bodies; ++j) {
+            double dx = bodies[j].x - bodies[i].x;
+            double dy = bodies[j].y - bodies[i].y;
+            double distSquared = dx * dx + dy * dy;
+            if (distSquared == 0.0) {
+                distSquared = 1e-10;
+            }
+
+            double dist = std::sqrt(distSquared);
+            double force = G * bodies[i].mass * bodies[j].mass / distSquared;
+            double fx = force * dx / dist;
+            double fy = force * dy / dist;
+
+            local_fx[thread_id][i] += fx;
+            local_fy[thread_id][i] += fy;
+            local_fx[thread_id][j] -= fx;
+            local_fy[thread_id][j] -= fy;
+        }
+    }
+}
+
+void NBodySimulation::computeForcesParallelNonAtomic(size_t num_threads) {
+    size_t N = bodies.size();
+    if (N == 0){
+        return; 
+    }
+
+    // thread-local arrays
+    std::vector<std::vector<double>> local_fx(num_threads, std::vector<double>(N, 0.0));
+    std::vector<std::vector<double>> local_fy(num_threads, std::vector<double>(N, 0.0));
+
+    size_t block_size = (N + num_threads - 1) / num_threads;
+
+    if (block_size == 0){
+        block_size = 1;
+    }
+    std::vector<std::thread> workers(num_threads - 1);
+    size_t start_block = 0;
+    for (size_t i = 0;i < num_threads-1; ++i) {
+        size_t end_block = std::min(start_block + block_size, N);
+        workers[i] = std::thread(&NBodySimulation::ComputeForcesThreadNonAtomic,
+                                this,
+                                bodies.data(),
+                                std::ref(local_fx),
+                                std::ref(local_fy),
+                                start_block,
+                                end_block,
+                                G,
+                                N,
+                                i);
+
+        start_block = end_block;
+    }
+
+    ComputeForcesThreadNonAtomic(bodies.data(), std::ref(local_fx), std::ref(local_fy), start_block, N, G, N, num_threads-1);
+    
+    for (size_t i = 0; i < workers.size(); ++i) {
+        workers[i].join();
+    }
+
+    // Combine thread-local forces into final result
+    for (size_t i = 0; i < N; ++i) {
+        double fx = 0.0;
+        double fy = 0.0;
+        for (size_t t = 0; t < num_threads; ++t) {
+            fx += local_fx[t][i];
+            fy += local_fy[t][i];
+        }
+        bodies[i].fx = fx;
+        bodies[i].fy = fy;
     }
 }
 
@@ -214,7 +299,7 @@ void NBodySimulation::stepSequential() {
 }
 
 void NBodySimulation::stepParallel(size_t num_threads) {
-    computeForcesParallel(num_threads);
+    computeForcesParallelNonAtomic(num_threads);
     updatePositionsParallel(num_threads);
 }
 
