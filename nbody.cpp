@@ -8,6 +8,7 @@
 #include <optional>
 #include <vector>
 #include <chrono>
+#include <atomic>
 
 #include "nbody.hpp"
 
@@ -74,9 +75,8 @@ void NBodySimulation::computeForces() {
 
 void NBodySimulation::ComputeForcesThread(
     Body* bodies,
-    std::vector<double>& fx_arr,
-    std::vector<double>& fy_arr,
-    std::vector<std::mutex>& body_mutexes,
+    std::vector<std::atomic<double>>& fx_arr,
+    std::vector<std::atomic<double>>& fy_arr,
     size_t start,
     size_t end,
     double G,
@@ -87,7 +87,7 @@ void NBodySimulation::ComputeForcesThread(
             double dx = bodies[j].x - bodies[i].x;
             double dy = bodies[j].y - bodies[i].y;
             double distSquared = dx * dx + dy * dy;
-            if (distSquared == 0.0){
+            if (distSquared == 0.0) {
                 distSquared = 1e-10;
             }
 
@@ -96,28 +96,14 @@ void NBodySimulation::ComputeForcesThread(
             double fx = force * dx / dist;
             double fy = force * dy / dist;
 
-            if (i < j) {
-                std::lock(body_mutexes[i], body_mutexes[j]);
-                std::lock_guard<std::mutex> lock1(body_mutexes[i], std::adopt_lock);
-                std::lock_guard<std::mutex> lock2(body_mutexes[j], std::adopt_lock);
-
-                fx_arr[i] += fx;
-                fy_arr[i] += fy;
-                fx_arr[j] -= fx;
-                fy_arr[j] -= fy;
-            } else {
-                std::lock(body_mutexes[j], body_mutexes[i]);
-                std::lock_guard<std::mutex> lock1(body_mutexes[j], std::adopt_lock);
-                std::lock_guard<std::mutex> lock2(body_mutexes[i], std::adopt_lock);
-
-                fx_arr[i] += fx;
-                fy_arr[i] += fy;
-                fx_arr[j] -= fx;
-                fy_arr[j] -= fy;
-            }
+            fx_arr[i].fetch_add(fx);
+            fy_arr[i].fetch_add(fy);
+            fx_arr[j].fetch_sub(fx);
+            fy_arr[j].fetch_sub(fy);
         }
     }
 }
+
 
 void NBodySimulation::computeForcesParallel(size_t num_threads) {
     size_t N = bodies.size();
@@ -125,9 +111,13 @@ void NBodySimulation::computeForcesParallel(size_t num_threads) {
         return; 
     }
 
-    std::vector<double> fx_arr(N, 0.0);
-    std::vector<double> fy_arr(N, 0.0);
-    std::vector<std::mutex> body_mutexes(N);
+    std::vector<std::atomic<double>> fx_arr(N);
+    std::vector<std::atomic<double>> fy_arr(N);
+
+    for (size_t i = 0; i < N; ++i) {
+        fx_arr[i] = 0.0;
+        fy_arr[i] = 0.0;
+    }
 
     size_t block_size = (N + num_threads - 1) / num_threads;
 
@@ -145,7 +135,6 @@ void NBodySimulation::computeForcesParallel(size_t num_threads) {
                                 bodies.data(),
                                 std::ref(fx_arr),
                                 std::ref(fy_arr),
-                                std::ref(body_mutexes),
                                 start_block,
                                 end_block,
                                 G,
@@ -153,7 +142,7 @@ void NBodySimulation::computeForcesParallel(size_t num_threads) {
         start_block = end_block;
     }
 
-    ComputeForcesThread(bodies.data(), std::ref(fx_arr), std::ref(fy_arr), std::ref(body_mutexes), start_block, N, G, N);
+    ComputeForcesThread(bodies.data(), std::ref(fx_arr), std::ref(fy_arr), start_block, N, G, N);
 
     for (size_t i = 0; i < workers.size(); ++i) {
         workers[i].join();
