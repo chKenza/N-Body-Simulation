@@ -34,9 +34,8 @@ public:
 
     void ComputeForcesThread(
         Body* bodies,
-        std::vector<double>& fx_arr,
-        std::vector<double>& fy_arr,
-        std::vector<std::mutex>& body_mutexes,
+        std::vector<std::atomic<double>>& fx_arr,
+        std::vector<std::atomic<double>>& fy_arr,
         size_t start,
         size_t end,
         double G,
