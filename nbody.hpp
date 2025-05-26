@@ -32,7 +32,7 @@ public:
 
     void computeForces();
 
-    void ComputeForcesThread(
+    void ComputeForcesThreadAtomic(
         Body* bodies,
         std::vector<std::atomic<double>>& fx_arr,
         std::vector<std::atomic<double>>& fy_arr,
@@ -42,7 +42,20 @@ public:
         size_t total_bodies
     );
 
-    void computeForcesParallel(size_t num_threads);
+    void computeForcesParallelAtomic(size_t num_threads);
+
+    void ComputeForcesThreadNonAtomic(
+        Body* bodies,
+        std::vector<std::vector<double>>& local_fx,
+        std::vector<std::vector<double>>& local_fy,
+        size_t start,
+        size_t end,
+        double G,
+        size_t total_bodies,
+        int thread_id
+    );
+
+    void computeForcesParallelNonAtomic(size_t num_threads);
 
 
     void updatePositionsSeq();
