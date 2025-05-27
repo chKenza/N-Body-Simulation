@@ -418,12 +418,59 @@ void runComparison() {
     }
 }
 
+
+void runEfficiencyTest(int num_bodies) {
+    const double G = 6.67430e-11;
+    const double dt = 10000;
+    const int steps = 1000;
+    const int num_threads = 4;
+
+    NBodySimulation sim_seq(G, dt);
+    NBodySimulation sim_par(G, dt);
+
+    for (int i = 0; i < num_bodies; ++i) {
+        double mass = random_double(1e20, 1e28);
+        double x = random_double(-1e12, 1e12);
+        double y = random_double(-1e12, 1e12);
+        double vx = random_double(-5e4, 5e4);
+        double vy = random_double(-5e4, 5e4);
+
+        sim_seq.addBody(mass, x, y, vx, vy);
+        sim_par.addBody(mass, x, y, vx, vy);
+    }
+
+    // Time sequential way
+    auto start_seq = std::chrono::high_resolution_clock::now();
+    for (int i = 0; i < steps; ++i) {
+        sim_seq.stepSequential();
+    }
+    auto end_seq = std::chrono::high_resolution_clock::now();
+    double time_seq = std::chrono::duration<double>(end_seq - start_seq).count();
+
+    // Time parallel way
+    auto start_par = std::chrono::high_resolution_clock::now();
+    for (int i = 0; i < steps; ++i) {
+        sim_par.stepParallel(num_threads);
+    }
+    auto end_par = std::chrono::high_resolution_clock::now();
+    double time_par = std::chrono::duration<double>(end_par - start_par).count();
+
+    std::cout << "=== Efficiency Report ===" << std::endl;
+    std::cout << "Sequential time: " << time_seq << " s" << std::endl;
+    std::cout << "Parallel time (" << num_threads << " threads): " << time_par << " s" << std::endl;
+    std::cout << "Speedup: " << time_seq / time_par << "x" << std::endl;
+}
+
+
+
 int main(int argc, char *argv[]) {
     // Process args before GTK to avoid errors
     int sim_type = 1;  // Default to solar system
     int random_bodies = 0;
     bool run_comp = false;
     bool show_help = false;
+    bool run_efficiency = false;
+    int efficiency_bodies = 0;
     
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
@@ -461,6 +508,27 @@ int main(int argc, char *argv[]) {
             argc--;
             i--;
         }
+        else if (arg == "-eff" && i + 1 < argc) {
+            try {
+                efficiency_bodies = std::stoi(argv[i + 1]);
+                if (efficiency_bodies <= 0) {
+                    std::cerr << "Invalid number of bodies." << std::endl;
+                    show_help = true;
+                    break;
+                }
+                run_efficiency = true;
+                for (int j = i; j < argc - 2; j++) {
+                    argv[j] = argv[j + 2];
+                }
+                argc -= 2;
+                i--;
+            } catch (const std::exception& e) {
+                std::cerr << "Error parsing efficiency test argument: " << e.what() << std::endl;
+                show_help = true;
+                break;
+            }
+        }
+        
         else if (arg == "-rand" && i+1 < argc) {
             try {
                 random_bodies = std::stoi(argv[i+1]);
@@ -493,14 +561,19 @@ int main(int argc, char *argv[]) {
         std::cout << "  |  -sim1       Solar System Simulation (DEFAULT)" << std::endl;
         std::cout << "  |  -sim3       3 Body Simulation" << std::endl;
         std::cout << "  |  -sim6       [BROKEN] 6 Body Simulation" << std::endl;
-        std::cout << "  |  -comp       Comparison Sequential & Parallel on Solar System" << std::endl;
         std::cout << "  |  -rand N     Simulation with N random bodies" << std::endl;
+        std::cout << "  |  -comp       Comparison Sequential & Parallel on Solar System" << std::endl;
+        std::cout << "  |  -eff N      Run efficiency comparison with N random bodies" << std::endl;
         std::cout << "  |  -help       Show this Help" << std::endl;
         return 0;
     }
     
     if (run_comp) {
         runComparison();
+        return 0;
+    }
+    if (run_efficiency) {
+        runEfficiencyTest(efficiency_bodies);
         return 0;
     }
     else if (random_bodies > 0) {
