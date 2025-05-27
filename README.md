@@ -21,4 +21,5 @@ Run the simulation as follows:
   - **`./nbody -sim6`** to simulate a 6 body problem
   - **`./nbody -rand N`** to simulate a random system with N bodies
   - **`./nbody -comp`** to compare the sequential and the conccurent approaches' results
+  - **`./nbody -eff N`** to compare the efficiency of the sequential and the conccurent approaches with N random bodies
   - **`./nbody -help`** to see all call options
