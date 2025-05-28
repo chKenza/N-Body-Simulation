@@ -419,11 +419,14 @@ void runComparison() {
 }
 
 
+
 void runEfficiencyTest(int num_bodies) {
     const double G = 6.67430e-11;
     const double dt = 10000;
     const int steps = 1000;
-    const int num_threads = 4;
+    int num_threads = 4;
+
+    for (int k = 0; k < 8; ++k){ // To see which number of threads is better depending on N bodies ||| TESTING ONLY |||
 
     NBodySimulation sim_seq(G, dt);
     NBodySimulation sim_par(G, dt);
@@ -459,6 +462,8 @@ void runEfficiencyTest(int num_bodies) {
     std::cout << "Sequential time: " << time_seq << " s" << std::endl;
     std::cout << "Parallel time (" << num_threads << " threads): " << time_par << " s" << std::endl;
     std::cout << "Speedup: " << time_seq / time_par << "x" << std::endl;
+    num_threads *= 2;
+}
 }
 
 

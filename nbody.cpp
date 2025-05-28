@@ -82,8 +82,11 @@ void NBodySimulation::ComputeForcesThreadAtomic(
     double G,
     size_t total_bodies
 ) {
-    for (size_t i = start; i < end; ++i) {
-        for (size_t j = i + 1; j < total_bodies; ++j) {
+    std::vector<double> local_fx(total_bodies, 0.0);
+    std::vector<double> local_fy(total_bodies, 0.0);
+
+    for (size_t i = start; i < end; ++i) { 
+        for (size_t j = i + 1; j < total_bodies; ++j) { 
             double dx = bodies[j].x - bodies[i].x;
             double dy = bodies[j].y - bodies[i].y;
             double distSquared = dx * dx + dy * dy;
@@ -96,10 +99,19 @@ void NBodySimulation::ComputeForcesThreadAtomic(
             double fx = force * dx / dist;
             double fy = force * dy / dist;
 
-            fx_arr[i].fetch_add(fx);
-            fy_arr[i].fetch_add(fy);
-            fx_arr[j].fetch_sub(fx);
-            fy_arr[j].fetch_sub(fy);
+            local_fx[i] += fx;
+            local_fy[i] += fy;
+            local_fx[j] -= fx;
+            local_fy[j] -= fy;
+        }
+    }
+
+    for (size_t i = 0; i < total_bodies; ++i) {
+        if (local_fx[i] != 0.0) {
+            fx_arr[i].fetch_add(local_fx[i]);
+        }
+        if (local_fy[i] != 0.0) {
+            fy_arr[i].fetch_add(local_fy[i]);
         }
     }
 }
@@ -114,7 +126,7 @@ void NBodySimulation::computeForcesParallelAtomic(size_t num_threads) {
     std::vector<std::atomic<double>> fx_arr(N);
     std::vector<std::atomic<double>> fy_arr(N);
 
-    for (size_t i = 0; i < N; ++i) {
+    for (size_t i = 0; i < N; ++i) { 
         fx_arr[i] = 0.0;
         fy_arr[i] = 0.0;
     }
@@ -143,7 +155,7 @@ void NBodySimulation::computeForcesParallelAtomic(size_t num_threads) {
     }
 
     ComputeForcesThreadAtomic(bodies.data(), std::ref(fx_arr), std::ref(fy_arr), start_block, N, G, N);
-
+ 
     for (size_t i = 0; i < workers.size(); ++i) {
         workers[i].join();
     }
@@ -299,7 +311,7 @@ void NBodySimulation::stepSequential() {
 }
 
 void NBodySimulation::stepParallel(size_t num_threads) {
-    computeForcesParallelNonAtomic(num_threads);
+    computeForcesParallelAtomic(num_threads);
     updatePositionsParallel(num_threads);
 }
 
