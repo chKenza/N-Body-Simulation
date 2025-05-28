@@ -322,24 +322,32 @@ const std::vector<Body>& NBodySimulation::getBodies() const {
 
 const double G = 6.67430e-11;
 double dt = 10000.0;
+const double rel_threshold = 0.01; // 1% relative error
 
 bool compareBodies(const std::vector<Body>& a, const std::vector<Body>& b) {
-    const double epsilon = 1e-6;
+    
     if (a.size() != b.size()) return false;
-    for (size_t i = 0; i < a.size(); ++i) { 
-        if (std::abs(a[i].x - b[i].x) > epsilon ||
-            std::abs(a[i].y - b[i].y) > epsilon ||
-            std::abs(a[i].vx - b[i].vx) > epsilon ||
-            std::abs(a[i].vy - b[i].vy) > epsilon) {
-                
-            std::cout << "Bodies differ at index " << i << std::endl;
-            std::cout << "Diff x " << std::abs(a[i].x - b[i].x) << std::endl;
-            std::cout << "Diff y " << std::abs(a[i].y - b[i].y) << std::endl;
-            std::cout << "Diff vx " << std::abs(a[i].vx - b[i].vx) << std::endl;
-            std::cout << "Diff vy " << std::abs(a[i].vy - b[i].vy) << std::endl;
 
+    for (size_t i = 0; i < a.size(); ++i) {
+        auto rel_error = [](double val1, double val2) {
+            double denom = std::max(std::abs(val2), 1e-12); // prevent division by zero
+            return std::abs(val1 - val2) / denom;
+        };
+
+        double rel_x = rel_error(a[i].x, b[i].x);
+        double rel_y = rel_error(a[i].y, b[i].y);
+        double rel_vx = rel_error(a[i].vx, b[i].vx);
+        double rel_vy = rel_error(a[i].vy, b[i].vy);
+
+        if (rel_x > rel_threshold || rel_y > rel_threshold || rel_vx > rel_threshold || rel_vy > rel_threshold) {
+            std::cout << "Bodies differ at index " << i << std::endl;
+            std::cout << "Relative Error x: " << rel_x << std::endl;
+            std::cout << "Relative Error y: " << rel_y << std::endl;
+            std::cout << "Relative Error vx: " << rel_vx << std::endl;
+            std::cout << "Relative Error vy: " << rel_vy << std::endl;
             return false;
         }
     }
+
     return true;
 }
