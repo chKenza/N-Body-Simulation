@@ -73,7 +73,7 @@ public:
 // Constants
 extern const double G;
 extern double dt;
-const double rel_threshold;
+extern const double rel_threshold;
 
 // Body comparison for testing
 bool compareBodies(const std::vector<Body>& a, const std::vector<Body>& b);
