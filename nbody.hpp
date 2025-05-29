@@ -73,9 +73,8 @@ public:
 // Constants
 extern const double G;
 extern double dt;
-extern const double rel_threshold;
 
-// Body comparison for testing
-bool compareBodies(const std::vector<Body>& a, const std::vector<Body>& b);
+// Relative error for testing
+void PositionRelativeError(const std::vector<Body>& a, const std::vector<Body>& b, double& error_out);
 
 #endif // NBODY_HPP
