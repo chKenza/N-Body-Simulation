@@ -398,7 +398,7 @@ void runComparison() {
             PositionRelativeError(bodies_seq, bodies_par, error);
 
             std::cout << "Step " << step << ":\n";
-            std::cout << "Position Relative Error: " << error << "\n";
+            std::cout << "Position Relative Error: " << 100*error << "%" << "\n"; // %
             std::cout << "----------------------------------------\n";
         }
     }
