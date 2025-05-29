@@ -38,7 +38,7 @@ void NBodySimulation::setTimeStep(double new_dt) {
     dt = new_dt;
 }
 
-// Compute forces between bodies
+// Compute forces between bodies with the sequential approach
 void NBodySimulation::computeForces() {
     // Reset forces
     for (auto& body : bodies) {
@@ -116,7 +116,7 @@ void NBodySimulation::ComputeForcesThreadAtomic(
     }
 }
 
-
+// Compute forces between bodies with the parallel approach using atomics
 void NBodySimulation::computeForcesParallelAtomic(size_t num_threads) {
     size_t N = bodies.size();
     if (N == 0){
@@ -126,7 +126,7 @@ void NBodySimulation::computeForcesParallelAtomic(size_t num_threads) {
     std::vector<std::atomic<double>> fx_arr(N);
     std::vector<std::atomic<double>> fy_arr(N);
 
-    for (size_t i = 0; i < N; ++i) { 
+    for (size_t i = 0; i < N; ++i) {
         fx_arr[i] = 0.0;
         fy_arr[i] = 0.0;
     }
@@ -155,7 +155,7 @@ void NBodySimulation::computeForcesParallelAtomic(size_t num_threads) {
     }
 
     ComputeForcesThreadAtomic(bodies.data(), std::ref(fx_arr), std::ref(fy_arr), start_block, N, G, N);
- 
+
     for (size_t i = 0; i < workers.size(); ++i) {
         workers[i].join();
     }
@@ -199,6 +199,7 @@ void NBodySimulation::ComputeForcesThreadNonAtomic(
     }
 }
 
+// Compute forces between bodies with the parallel approach using thread-local arrays
 void NBodySimulation::computeForcesParallelNonAtomic(size_t num_threads) {
     size_t N = bodies.size();
     if (N == 0){
@@ -311,6 +312,9 @@ void NBodySimulation::stepSequential() {
 }
 
 void NBodySimulation::stepParallel(size_t num_threads) {
+    // change to computeForcesParallelAtomic(num_threads) to use the atomic parallel approach
+    // change to computeForcesParallelNonAtomic(num_threads) to use the non atomic parallel approach
+    // chage to ComputeForcesParallelBarnesHut(size_t num_threads) to use the Barnes Hut algorithm
     computeForcesParallelAtomic(num_threads);
     updatePositionsParallel(num_threads);
 }
@@ -344,4 +348,188 @@ void PositionRelativeError(const std::vector<Body>& a, const std::vector<Body>& 
     }
 
     error_out = total_error / a.size();
+}
+
+
+
+// Barnes-Hut Algorithm implementation
+// ChatGpt helped with the implementation of this algorithm
+/*
+We devide the space as follows:
+Divide space recursively
++--------+--------+
+|        |        |
+|   NW   |   NE   |
+|        |        |
++--------+--------+
+|        |        |
+|   SW   |   SE   |
+|        |        |
++--------+--------+
+approximate if body far enough, i.e. size of region / dist < theta
+*/
+
+Quad::Quad(double xmid, double ymid, double length)
+    : xmid(xmid), ymid(ymid), length(length) {}
+
+bool Quad::contains(double x, double y) const {
+    // check if (x, y) is in the square
+    return x >= xmid - length / 2 && x <= xmid + length / 2 &&
+           y >= ymid - length / 2 && y <= ymid + length / 2;
+}
+
+Quad Quad::NW() const { return Quad(xmid - length / 4, ymid + length / 4, length / 2); }
+Quad Quad::NE() const { return Quad(xmid + length / 4, ymid + length / 4, length / 2); }
+Quad Quad::SW() const { return Quad(xmid - length / 4, ymid - length / 4, length / 2); }
+Quad Quad::SE() const { return Quad(xmid + length / 4, ymid - length / 4, length / 2); }
+
+
+QuadNode::QuadNode(const Quad& region) : region(region) {}
+
+bool QuadNode::isExternal() const {
+    // True if node has no children
+    return !NW && !NE && !SW && !SE;
+}
+
+void QuadNode::insert(Body* b) {
+    // No insertion if body is outside this node's region
+    if (!region.contains(b->x, b->y)) return;
+
+    // First body to be inserted
+    if (!body && isExternal()) {
+        // store and set center of mass
+        body = b;
+        mass = b->mass;
+        com_x = b->x;
+        com_y = b->y;
+        return;
+    }
+
+    // If the node already contains a body, we subdivide
+    if (isExternal()) {
+        Body* existing = body;
+        body = nullptr;
+        // Create the four child quadrants
+        NW = std::make_unique<QuadNode>(region.NW());
+        NE = std::make_unique<QuadNode>(region.NE());
+        SW = std::make_unique<QuadNode>(region.SW());
+        SE = std::make_unique<QuadNode>(region.SE());
+
+        // Reinsert the existing body into one of the children
+        if (NW->region.contains(existing->x, existing->y)) NW->insert(existing);
+        else if (NE->region.contains(existing->x, existing->y)) NE->insert(existing);
+        else if (SW->region.contains(existing->x, existing->y)) SW->insert(existing);
+        else if (SE->region.contains(existing->x, existing->y)) SE->insert(existing);
+    }
+
+    // Insert the new body
+    if (NW->region.contains(b->x, b->y)) NW->insert(b);
+    else if (NE->region.contains(b->x, b->y)) NE->insert(b);
+    else if (SW->region.contains(b->x, b->y)) SW->insert(b);
+    else if (SE->region.contains(b->x, b->y)) SE->insert(b);
+
+    // Update center of mass
+    double new_mass = mass + b->mass;
+    com_x = (com_x * mass + b->x * b->mass) / new_mass;
+    com_y = (com_y * mass + b->y * b->mass) / new_mass;
+    mass = new_mass;
+}
+
+
+void NBodySimulation::ComputeForceBarnesHut(Body& b, const QuadNode& node, double G, double theta) {
+    if (node.mass == 0 || (node.isExternal() && node.body == &b)) return;
+
+    double dx = node.com_x - b.x;
+    double dy = node.com_y - b.y;
+    double distSquared = dx * dx + dy * dy;
+    if (distSquared == 0.0) {
+        distSquared = 1e-10;
+    }
+
+    double dist = std::sqrt(distSquared);
+
+    // If size of region / dist < theta then we approximate (far enough)
+    if (node.isExternal() || (node.region.length / dist < theta)) {
+        double F = G * b.mass * node.mass / (dist * dist);
+        b.fx += F * dx / dist;
+        b.fy += F * dy / dist;
+    } else {
+        // too close, recurse
+        if (node.NW) ComputeForceBarnesHut(b, *node.NW, G, theta);
+        if (node.NE) ComputeForceBarnesHut(b, *node.NE, G, theta);
+        if (node.SW) ComputeForceBarnesHut(b, *node.SW, G, theta);
+        if (node.SE) ComputeForceBarnesHut(b, *node.SE, G, theta);
+    }
+}
+void NBodySimulation::ComputeForcesThreadBarnesHut(
+    Body* bodies,
+    size_t start,
+    size_t end,
+    const QuadNode* root,
+    double G,
+    double theta
+) {
+    for (size_t i = start; i < end; ++i) {
+        bodies[i].fx = 0.0;
+        bodies[i].fy = 0.0;
+        ComputeForceBarnesHut(bodies[i], *root, G, theta);
+    }
+}
+
+void NBodySimulation::ComputeForcesParallelBarnesHut(size_t num_threads) {
+    size_t N = bodies.size();
+    if (N == 0){
+        return; 
+    }
+
+    size_t block_size = (N + num_threads - 1) / num_threads;
+
+    if (block_size == 0){
+        block_size = 1;
+    }
+
+    // Compute bounds to enclose all bodies
+    double min_x = bodies[0].x, max_x = bodies[0].x;
+    double min_y = bodies[0].y, max_y = bodies[0].y;
+    for (const auto& b : bodies) {
+        min_x = std::min(min_x, b.x);
+        max_x = std::max(max_x, b.x);
+        min_y = std::min(min_y, b.y);
+        max_y = std::max(max_y, b.y);
+    }
+
+    // Define the root quad to cover all bodies
+    double length = std::max(max_x - min_x, max_y - min_y);
+    Quad root_region((min_x + max_x) / 2.0, (min_y + max_y) / 2.0, length * 1.5);
+    QuadNode root(root_region);
+
+    //Build tree
+    for (auto& b : bodies) {
+        root.insert(&b);
+    }
+
+    double theta = 0.5; // Make smaller to increase accuracy, make bigger to increase speedup
+    std::vector<std::thread> workers(num_threads - 1);
+    size_t start_block = 0;
+    for (size_t i = 0; i < num_threads -1; ++i) {
+        size_t end_block = std::min(start_block + block_size, N);
+        workers[i] = std::thread(&NBodySimulation::ComputeForcesThreadBarnesHut,
+                                    this,
+                                    bodies.data(),
+                                    start_block,
+                                    end_block,
+                                    &root,
+                                    G,
+                                    theta);
+
+        start_block = end_block;
+    }
+
+    ComputeForcesThreadBarnesHut(bodies.data(), start_block, N, &root, G, theta);
+
+    for (size_t i = 0; i < workers.size(); ++i) {
+        workers[i].join();
+    }
+    
+
 }
