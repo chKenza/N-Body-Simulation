@@ -365,22 +365,17 @@ class MainWindow: public Gtk::Window {
         }
 };
 
+//Test the accuracy of the parallel approach
 void runComparison() {
     const double G = 6.67430e-11;
     const double dt = 10000;
+    const size_t num_threads = 32;
 
     NBodySimulation sim_seq(G, dt);
     NBodySimulation sim_par(G, dt);
 
-    sim_seq.addBody(1.989e30, 0.0, 0.0, 0.0, 0.0);  // Sun
-    sim_seq.addBody(5.972e24, 1.49e11, 0.0, 0.0, 29800.0);  // Earth
-    sim_seq.addBody(6.39e23, 2.28e11, 0.0, 0.0, 24100.0);  // Mars
-
-    sim_par.addBody(1.989e30, 0.0, 0.0, 0.0, 0.0);  // Sun
-    sim_par.addBody(5.972e24, 1.49e11, 0.0, 0.0, 29800.0);  // Earth
-    sim_par.addBody(6.39e23, 2.28e11, 0.0, 0.0, 24100.0);  // Mars
-
-    for (int i = 0; i < 30; ++i) {
+    // Add random bodies
+    for (int i = 0; i < 100; ++i) {
         double mass = random_double(1e22, 1e27);
         double x = random_double(1e10, 1e12);
         double vy = random_double(1e3, 1e4);
@@ -392,24 +387,23 @@ void runComparison() {
         sim_par.addBody(mass, x, 0.0, 0.0, vy, r, g, b);
     }
 
-    const size_t num_threads = 4;
-
     for (int step = 0; step <= 1000; ++step) {
         sim_seq.stepSequential();
         sim_par.stepParallel(num_threads);
 
         if (step % 100 == 0) {
-            std::cout << "Step " << step << ":\n";
             const auto& bodies_seq = sim_seq.getBodies();
             const auto& bodies_par = sim_par.getBodies();
+            double error = 0.0;
+            PositionRelativeError(bodies_seq, bodies_par, error);
 
-            bool same = compareBodies(bodies_seq, bodies_par);
-            std::cout << (same ? "Bodies are identical" : "Bodies are different") << std::endl;
-            std::cout << ("----------------------------------------") << std::endl;
+            std::cout << "Step " << step << ":\n";
+            std::cout << "Position Relative Error: " << error << "\n";
+            std::cout << "----------------------------------------\n";
         }
     }
-}
 
+}
 
 
 void runEfficiencyTest(int num_bodies) {
