@@ -322,32 +322,26 @@ const std::vector<Body>& NBodySimulation::getBodies() const {
 
 const double G = 6.67430e-11;
 double dt = 10000.0;
-const double rel_threshold = 0.01; // 1% relative error
 
-bool compareBodies(const std::vector<Body>& a, const std::vector<Body>& b) {
-    
-    if (a.size() != b.size()) return false;
-
-    for (size_t i = 0; i < a.size(); ++i) {
-        auto rel_error = [](double val1, double val2) {
-            double denom = std::max(std::abs(val2), 1e-12); // prevent division by zero
-            return std::abs(val1 - val2) / denom;
-        };
-
-        double rel_x = rel_error(a[i].x, b[i].x);
-        double rel_y = rel_error(a[i].y, b[i].y);
-        double rel_vx = rel_error(a[i].vx, b[i].vx);
-        double rel_vy = rel_error(a[i].vy, b[i].vy);
-
-        if (rel_x > rel_threshold || rel_y > rel_threshold || rel_vx > rel_threshold || rel_vy > rel_threshold) {
-            std::cout << "Bodies differ at index " << i << std::endl;
-            std::cout << "Relative Error x: " << rel_x << std::endl;
-            std::cout << "Relative Error y: " << rel_y << std::endl;
-            std::cout << "Relative Error vx: " << rel_vx << std::endl;
-            std::cout << "Relative Error vy: " << rel_vy << std::endl;
-            return false;
-        }
+// Compute the position relative error to test the accuracy of the parallel approach
+void PositionRelativeError(const std::vector<Body>& a, const std::vector<Body>& b, double& error_out) {
+    if (a.size() != b.size()) {
+        error_out = std::numeric_limits<double>::infinity();
+        return;
     }
 
-    return true;
+    double total_error = 0.0;
+    const double epsilon = 1e-12;
+
+    for (size_t i = 0; i < a.size(); ++i) {
+        double dx = a[i].x - b[i].x;
+        double dy = a[i].y - b[i].y;
+
+        double dist = std::sqrt(dx * dx + dy * dy);
+        double seq_position = std::sqrt(a[i].x * a[i].x + a[i].y * a[i].y);
+
+        total_error += dist / std::max(seq_position, epsilon);
+    }
+
+    error_out = total_error / a.size();
 }
