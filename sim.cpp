@@ -203,6 +203,9 @@ class MainWindow: public Gtk::Window {
         }
                 
         void setupThreeBody() {
+            // Classic three-body problem with three stars of similar mass
+            // in an equilateral triangle with small random velocity perturbations
+                    
             double m = 1.5e27;
             double d = 1.0e11;
             double max_init_velocity = 4.0e3;
@@ -228,6 +231,9 @@ class MainWindow: public Gtk::Window {
         }        
 
         void setupHexagonBodies() {
+            // Setup six bodies positioned at the vertices of a regular hexagon
+            // with small random velocity perturbations
+            
             double m = 1.5e27;
             double d = 1.0e11;
             double max_init_velocity = 4.0e3;
@@ -241,6 +247,7 @@ class MainWindow: public Gtk::Window {
                 {0.5, 0.0, 0.5} 
             };
             
+            // Create six bodies positioned at the vertices of a regular hexagon
             for (int i = 0; i < 6; i++) {
                 double angle = i * (2.0 * G_PI / 6.0);
                 double x = d * cos(angle);
@@ -271,6 +278,7 @@ class MainWindow: public Gtk::Window {
                 
 
                 // Styling to see the big ones better
+
                 double brightness = 0.5 + 0.5 * (std::log10(mass) - 20.0) / 11.0;
                 brightness = std::min(1.0, std::max(0.0, brightness));
                 
@@ -398,14 +406,14 @@ void runComparison() {
             PositionRelativeError(bodies_seq, bodies_par, error);
 
             std::cout << "Step " << step << ":\n";
-            std::cout << "Position Relative Error: " << 100*error << "%" << "\n"; // %
+            std::cout << "Position Relative Error: " << 100*error << "%" << "\n";
             std::cout << "----------------------------------------\n";
         }
     }
 
 }
 
-
+// Test for efficiency
 void runEfficiencyTest(int num_bodies) {
     const double G = 6.67430e-11;
     const double dt = 10000;
@@ -451,7 +459,6 @@ void runEfficiencyTest(int num_bodies) {
     num_threads *= 2;
 }
 }
-
 
 
 int main(int argc, char *argv[]) {
@@ -553,8 +560,8 @@ int main(int argc, char *argv[]) {
         std::cout << "  |  -sim3       3 Body Simulation" << std::endl;
         std::cout << "  |  -sim6       [BROKEN] 6 Body Simulation" << std::endl;
         std::cout << "  |  -rand N     Simulation with N random bodies" << std::endl;
-        std::cout << "  |  -comp       Comparison Sequential & Parallel on Solar System" << std::endl;
-        std::cout << "  |  -eff N      Run efficiency comparison with N random bodies" << std::endl;
+        std::cout << "  |  -comp       Accuracy test for the parallel approach using position relative error on 100 random bodies" << std::endl;
+        std::cout << "  |  -eff N      Efficiency test with N random bodies" << std::endl;
         std::cout << "  |  -help       Show this Help" << std::endl;
         return 0;
     }
