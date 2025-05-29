@@ -7,20 +7,38 @@
 #include <chrono>
 #include <string>
 #include <cstdlib>
+#include <mutex>
 
 double random_double(double min, double max) {
     return min + (max - min) * (rand() / (RAND_MAX + 1.0));
 }
 
+struct DrawData{
+    double x, y, rad, r, g, b;
+};
+
+void compute_draw_data(std::vector<Body>& bodies, std::vector<DrawData>& data, size_t start, size_t end,
+                     int width, int height, double zoom_factor, double offset_x, double offset_y){
+    for (size_t i = start; i < end; i++){
+        data[i].x = (width / 2 + bodies[i].x / 1e9 + offset_x) * zoom_factor;
+        data[i].y = (height / 2 + bodies[i].y / 1e9 + offset_y) * zoom_factor;
+        data[i].rad = (2.0 + 4.0 * (std::log10(bodies[i].mass) - 20.0) / 5.0) * zoom_factor;
+        data[i].r = bodies[i].r;
+        data[i].g = bodies[i].g;   
+        data[i].b = bodies[i].b;
+    }
+}
+
 class SimulationArea: public Gtk::DrawingArea {
     public:
-        std::vector<Body> draw_data;
+        std::vector<Body> bodies;
         double zoom_factor = 1.0;
         double offset_x = 0.0;
         double offset_y = 0.0;
         bool dragging = false;
         double drag_start_x = 0.0;
         double drag_start_y = 0.0;
+        std::mutex data_mutex;
 
         SimulationArea() {
             add_events(Gdk::SCROLL_MASK | Gdk::KEY_PRESS_MASK | 
@@ -30,21 +48,78 @@ class SimulationArea: public Gtk::DrawingArea {
 
     protected:
         bool on_draw(const Cairo::RefPtr<Cairo::Context>& cr) override {
+            size_t N = bodies.size();
+
+            if (N < 100){
+                drawSeq(cr);
+                return true;
+            }
+
             Gtk::Allocation allocation = get_allocation();
             int width = allocation.get_width();
             int height = allocation.get_height();
             cr->set_source_rgb(0, 0, 0);
             cr->paint();
 
+            size_t num_threads;
+
+            if (N < 1000){
+                num_threads = 8;
+            }else if (N < 10000){
+                num_threads = 32;
+            }else{
+                num_threads = 64;
+            }
+
+            size_t b_size = N / num_threads;
+            size_t rem = N % num_threads;
+            std::vector<std::thread> workers(num_threads - 1);
+            std::vector<DrawData> draw_data(N);
+            size_t start_idx = 0;
+            size_t end_idx = 0;
+
+            for (size_t i = 0; i < num_threads - 1; i++){
+                end_idx = start_idx + b_size;
+                if (i < rem) {
+                    end_idx++;
+                }
+                workers[i] = std::thread(compute_draw_data, std::ref(bodies), std::ref(draw_data), start_idx, end_idx,
+                                         width, height, zoom_factor, offset_x, offset_y);
+                start_idx = end_idx;
+            }
+
+            compute_draw_data(std::ref(bodies), std::ref(draw_data), start_idx, N,
+                              width, height, zoom_factor, offset_x, offset_y);
+
+            for (auto& worker : workers) {
+                if (worker.joinable()) {
+                    worker.join();
+                }
+            }
+
             for (const auto& body : draw_data) {
+                cr->set_source_rgb(body.r, body.g, body.b);
+                cr->arc(body.x, body.y, body.rad, 0, 2 * G_PI); // Scaled size based on mass
+                cr->fill();
+            }
+
+            return true;
+        }
+
+        void drawSeq(const Cairo::RefPtr<Cairo::Context>& cr) {
+            Gtk::Allocation allocation = get_allocation();
+            int width = allocation.get_width();
+            int height = allocation.get_height();
+            cr->set_source_rgb(0, 0, 0);
+            cr->paint();
+
+            for (const auto& body : bodies) {
                 cr->set_source_rgb(body.r, body.g, body.b);
                 double scaled_x = (width / 2 + body.x / 1e9 + offset_x) * zoom_factor;
                 double scaled_y = (height / 2 + body.y / 1e9 + offset_y) * zoom_factor;
                 cr->arc(scaled_x, scaled_y, (2.0 + 4.0 * (std::log10(body.mass) - 20.0) / 5.0) * zoom_factor, 0, 2 * G_PI); // Scaled size based on mass
                 cr->fill();
             }
-
-            return true;
         }
 
         bool on_scroll_event(GdkEventScroll* scroll_event) override {
@@ -99,7 +174,11 @@ class MainWindow: public Gtk::Window {
     NBodySimulation sim;
     SimulationArea area;
     Glib::Dispatcher dispatcher;
+
     std::thread sim_thread;
+    std::thread render_thread;
+    std::mutex data_mutex;    
+
     std::atomic<bool> running;
     std::atomic<bool> paused;
 
@@ -170,12 +249,21 @@ class MainWindow: public Gtk::Window {
                     if (!paused) {
                         sim.setTimeStep(dt_current);
                         sim.stepParallel(4);
-                        area.draw_data = sim.getBodies(); 
-                        dispatcher.emit();
                     }
-                    std::this_thread::sleep_for(std::chrono::milliseconds(30));
+                    std::this_thread::sleep_for(std::chrono::microseconds(20));
                 }
-            });        
+            });
+
+            render_thread = std::thread([this]() {
+                while (running) {
+                    {
+                        std::lock_guard<std::mutex> lock(data_mutex);
+                        area.bodies = sim.getBodies();
+                    }
+                    dispatcher.emit();
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                }
+            });    
         }
 
         void setup_sim(int sim_type, int random_bodies){
@@ -370,6 +458,7 @@ class MainWindow: public Gtk::Window {
         ~MainWindow() {
             running = false;
             if (sim_thread.joinable()) sim_thread.join();
+            if (render_thread.joinable()) render_thread.join();        
         }
 };
 
