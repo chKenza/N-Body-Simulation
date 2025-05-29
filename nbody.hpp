@@ -4,6 +4,7 @@
 #include <vector>
 #include <thread>
 #include <mutex>
+#include <memory>
 
 // Structure representing a celestial body
 struct Body {
@@ -12,6 +13,32 @@ struct Body {
     double vx, vy;
     double fx, fy;
     double r, g, b;
+};
+
+// Structure for Barnes-Hut Algorithm
+struct Quad {
+    double xmid, ymid, length;  // center and length of the square
+    Quad(double xmid, double ymid, double length);
+    // to check is the point is in the region
+    bool contains(double x, double y) const;
+
+    //new Quad
+    Quad NW() const;
+    Quad NE() const;
+    Quad SW() const;
+    Quad SE() const;
+};
+
+struct QuadNode {
+    Quad region;
+    double mass = 0;
+    double com_x = 0, com_y = 0; // center of mass
+    Body* body = nullptr;
+    std::unique_ptr<QuadNode> NW, NE, SW, SE;
+
+    QuadNode(const Quad& region);
+    bool isExternal() const;
+    void insert(Body* b);  // insert body into the quadtree
 };
 
 class NBodySimulation {
@@ -68,6 +95,18 @@ public:
     void stepParallel(size_t num_threads);
 
     const std::vector<Body>& getBodies() const;
+
+    void ComputeForceBarnesHut(Body& b, const QuadNode& node, double G, double theta);
+    void ComputeForcesParallelBarnesHut(size_t num_threads);
+    void ComputeForcesThreadBarnesHut(
+        Body* bodies,
+        size_t start,
+        size_t end,
+        const QuadNode* root,
+        double G,
+        double theta
+    );
+
 };
 
 // Constants
@@ -76,5 +115,6 @@ extern double dt;
 
 // Relative error for testing
 void PositionRelativeError(const std::vector<Body>& a, const std::vector<Body>& b, double& error_out);
+
 
 #endif // NBODY_HPP
