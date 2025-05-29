@@ -12,13 +12,13 @@ COMMON_HDR = nbody.hpp
 all: $(TARGET)
 
 $(TARGET): $(OBJ)
-	$(CXX) $(CXXFLAGS) $(shell $(GTKFLAGS)) -o $@ $^ $(shell $(GTKLIBS)) -pthread
+	@$(CXX) $(CXXFLAGS) $(shell $(GTKFLAGS)) -o $@ $^ $(shell $(GTKLIBS)) -pthread
 
 nbody.o: nbody.cpp $(COMMON_HDR)
-	$(CXX) $(CXXFLAGS) $(shell $(GTKFLAGS)) -c nbody.cpp
+	@$(CXX) $(CXXFLAGS) $(shell $(GTKFLAGS)) -c nbody.cpp
 
 sim.o: sim.cpp $(COMMON_HDR)
-	$(CXX) $(CXXFLAGS) $(shell $(GTKFLAGS)) -c sim.cpp
+	@$(CXX) $(CXXFLAGS) $(shell $(GTKFLAGS)) -c sim.cpp
 
 clean:
-	rm -f $(TARGET) *.o
+	@rm -f $(TARGET) *.o
