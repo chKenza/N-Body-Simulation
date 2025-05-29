@@ -29,7 +29,7 @@ void compute_draw_data(std::vector<Body>& bodies, std::vector<DrawData>& data, s
     }
 }
 
-class SimulationArea: public Gtk::DrawingArea {
+class SimulationArea: public Gtk::DrawingArea { // Used AI (not extensively) to help understand how to use GTKMM for drawing
     public:
         std::vector<Body> bodies;
         double zoom_factor = 1.0;
@@ -65,7 +65,7 @@ class SimulationArea: public Gtk::DrawingArea {
 
             if (N < 1000){
                 num_threads = 8;
-            }else if (N < 10000){
+            }else if (N <= 10000){
                 num_threads = 32;
             }else{
                 num_threads = 64;
@@ -170,7 +170,7 @@ class SimulationArea: public Gtk::DrawingArea {
         }
 };
 
-class MainWindow: public Gtk::Window {
+class MainWindow: public Gtk::Window {  // Used AI (not extensively) to help understand faster how GTKMM Window works
     NBodySimulation sim;
     SimulationArea area;
     Glib::Dispatcher dispatcher;
@@ -244,14 +244,31 @@ class MainWindow: public Gtk::Window {
             dispatcher.connect(sigc::mem_fun(*this, &MainWindow::on_simulation_step));
             show_all_children();
 
-            sim_thread = std::thread([this]() {
+            size_t N = sim.getBodies().size();
+            size_t num_threads;
+
+            if ( N < 10){
+                num_threads = 1;
+            }else if (N < 100){
+                num_threads = std::min(N, size_t(4));
+            }else if (N < 1000){
+                num_threads = 8;
+            }else if (N <= 10000){
+                num_threads = 32;
+            }else{
+                num_threads = 64;
+            }
+
+            sim_thread = std::thread([this, num_threads]() {
                 while (running) {
                     if (!paused) {
                         sim.setTimeStep(dt_current);
-                        sim.stepParallel(4);
+                        sim.stepParallel(num_threads);
                     }
-                    std::this_thread::sleep_for(std::chrono::microseconds(20));
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
                 }
+                
             });
 
             render_thread = std::thread([this]() {
@@ -291,9 +308,6 @@ class MainWindow: public Gtk::Window {
         }
                 
         void setupThreeBody() {
-            // Classic three-body problem with three stars of similar mass
-            // in an equilateral triangle with small random velocity perturbations
-                    
             double m = 1.5e27;
             double d = 1.0e11;
             double max_init_velocity = 4.0e3;
@@ -319,9 +333,6 @@ class MainWindow: public Gtk::Window {
         }        
 
         void setupHexagonBodies() {
-            // Setup six bodies positioned at the vertices of a regular hexagon
-            // with small random velocity perturbations
-            
             double m = 1.5e27;
             double d = 1.0e11;
             double max_init_velocity = 4.0e3;
@@ -335,7 +346,6 @@ class MainWindow: public Gtk::Window {
                 {0.5, 0.0, 0.5} 
             };
             
-            // Create six bodies positioned at the vertices of a regular hexagon
             for (int i = 0; i < 6; i++) {
                 double angle = i * (2.0 * G_PI / 6.0);
                 double x = d * cos(angle);
@@ -598,7 +608,7 @@ int main(int argc, char *argv[]) {
         else if (arg == "-eff" && i + 1 < argc) {
             try {
                 efficiency_bodies = std::stoi(argv[i + 1]);
-                if (efficiency_bodies <= 0) {
+                if (efficiency_bodies <= 1) {
                     std::cerr << "Invalid number of bodies." << std::endl;
                     show_help = true;
                     break;
