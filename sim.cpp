@@ -244,14 +244,28 @@ class MainWindow: public Gtk::Window {
             dispatcher.connect(sigc::mem_fun(*this, &MainWindow::on_simulation_step));
             show_all_children();
 
-            sim_thread = std::thread([this]() {
+            if (N < 10){
+                num_threads = 1;
+            }else if (N < 100){
+                num_threads = std::min(N, size_t(4));
+            }else if (N < 1000){
+                num_threads = 8;
+            }else if (N <= 10000){
+                num_threads = 32;
+            }else{
+                num_threads = 64;
+            }
+
+            sim_thread = std::thread([this, num_threads]() {
                 while (running) {
                     if (!paused) {
                         sim.setTimeStep(dt_current);
-                        sim.stepParallel(4);
+                        sim.stepParallel(num_threads);
                     }
-                    std::this_thread::sleep_for(std::chrono::microseconds(20));
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
                 }
+                
             });
 
             render_thread = std::thread([this]() {
