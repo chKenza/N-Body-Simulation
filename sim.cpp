@@ -244,10 +244,11 @@ class MainWindow: public Gtk::Window {
             dispatcher.connect(sigc::mem_fun(*this, &MainWindow::on_simulation_step));
             show_all_children();
 
-            if (N < 10){
+            size_t N = sim.getBodies().size();
+            size_t num_threads;
+
+            if (N < 100){
                 num_threads = 1;
-            }else if (N < 100){
-                num_threads = std::min(N, size_t(4));
             }else if (N < 1000){
                 num_threads = 8;
             }else if (N <= 10000){
@@ -523,7 +524,7 @@ void runEfficiencyTest(int num_bodies) {
     const int steps = 1000;
     int num_threads = 4;
 
-    for (int k = 0; k < 8; ++k){ // To see which number of threads is better depending on N bodies ||| TESTING ONLY |||
+    for (int k = 0; k < 6; ++k){ // To see which number of threads is better depending on N bodies ||| TESTING ONLY |||
 
     NBodySimulation sim_seq(G, dt);
     NBodySimulation sim_par(G, dt);
