@@ -10,7 +10,7 @@
     - A direct parallel approach using atomics
     - A direct parallel approach using thread-local arrays
     - The parallel Barnes-Hut algorithm
-- **sim.cpp** : Starts the GUI using GTKMM and allows switching between simulation modes (solar system, 3-body and 6-body problems, N random bodies, etc.). Particles are redrawn live using thread-parallel rendering for better responsiveness. Also implements the accuracy and efficiency analyses.
+- **sim.cpp** : Starts the GUI using GTKMM and allows switching between simulation modes (solar system, 3-body and 6-body problems, N random bodies, etc.). Particles are rendered live in a sequential manner because Cairo, the rendering library, is not thread-safe. However, the particle data is updated concurrently in parallel threads to improve responsiveness. Also implements the accuracy and efficiency analyses.
 
 ## How to Run
 ### 1. Prerequisites
