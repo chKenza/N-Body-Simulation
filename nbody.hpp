@@ -35,10 +35,12 @@ struct QuadNode {
     double com_x = 0, com_y = 0; // center of mass
     Body* body = nullptr;
     std::unique_ptr<QuadNode> NW, NE, SW, SE;
+    mutable std::mutex node_mutex;
 
     QuadNode(const Quad& region);
     bool isExternal() const;
     void insert(Body* b);  // insert body into the quadtree
+    void insertmutex(Body* b);
 };
 
 class NBodySimulation {
@@ -109,6 +111,8 @@ public:
         double G,
         double theta
     );
+    void buildTreeParallel(size_t num_threads, QuadNode& root);
+    void insertBodiesThread(size_t start, size_t end, QuadNode& root);
 
 };
 
