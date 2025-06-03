@@ -29,6 +29,16 @@ Run the simulation as follows:
   - **`./nbody -eff N`** to test efficiency with N random bodies
   - **`./nbody -help`** to see all call options
 
+## GUI Controls and Interactive Features
+
+Once the simulation window opens, you can interact with the system in real time using:
+
+- **Spacebar**: Pause/Resume the simulation
+- **+ / -** or **Zoom In / Zoom Out buttons**: Zoom into or out of the simulation view
+- **Mouse Drag**: Click and drag with the left mouse button to pan the simulation view
+- **Up / Down Arrow Keys** or **Faster / Slower buttons**: Increase or decrease the timestep (i.e., simulation speed)
+- **R or Reset button**: Reset the simulation to its initial state
+
 ## Simulation Preview
 
 ### Solar System
@@ -45,13 +55,3 @@ Run the simulation as follows:
 
 ### 500 Random Bodies
 ![Sim](gifs/rand500.gif)
-
-## GUI Controls and Interactive Features
-
-Once the simulation window opens, you can interact with the system in real time using:
-
-- **Spacebar**: Pause/Resume the simulation
-- **+ / -** or **Zoom In / Zoom Out buttons**: Zoom into or out of the simulation view
-- **Mouse Drag**: Click and drag with the left mouse button to pan the simulation view
-- **Up / Down Arrow Keys** or **Faster / Slower buttons**: Increase or decrease the timestep (i.e., simulation speed)
-- **R or Reset button**: Reset the simulation to its initial state
