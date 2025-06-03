@@ -492,15 +492,14 @@ std::vector<Body> gen_sys(){
 void runComparison(std::vector<Body>& bodies) {
     const double G = 6.67430e-11;
     const double dt = 10000;
-    const size_t num_threads = 32;
+    const size_t num_threads = 16;
 
-    for (double th = 0.0; th <= 1.0; th += 0.1){
+    for (double th = 0.0; th <= 1.0; th += 0.02){
     NBodySimulation sim_seq(G, dt);
     NBodySimulation sim_par(G, dt);
 
     std::vector<Body> bs = bodies;
 
-    // Add random bodies
     for (const auto& body : bs) {
         sim_seq.addBody(body);
         sim_par.addBody(body);
@@ -510,7 +509,7 @@ void runComparison(std::vector<Body>& bodies) {
         sim_seq.stepSequential();
         sim_par.stepParallel(num_threads, th);
 
-        if (step % 100 == 0) {
+        if (step == 100 || step == 500 || step == 1000) {
             const auto& bodies_seq = sim_seq.getBodies();
             const auto& bodies_par = sim_par.getBodies();
             double error = 0.0;
@@ -530,14 +529,11 @@ void runEfficiencyTest(int num_bodies) {
     const double G = 6.67430e-11;
     const double dt = 10000;
     const int steps = 1000;
-    int num_threads = 4;
-
-    for (int k = 0; k < 6; ++k){ // To see which number of threads is better depending on N bodies ||| TESTING ONLY |||
+    int num_threads = 1;
 
     NBodySimulation sim_seq(G, dt);
-    NBodySimulation sim_par(G, dt);
 
-    for (int i = 0; i < num_bodies; ++i) {
+    for (int i = 0; i < num_bodies; ++i)  {
         double mass = random_double(1e20, 1e28);
         double x = random_double(-1e12, 1e12);
         double y = random_double(-1e12, 1e12);
@@ -545,8 +541,9 @@ void runEfficiencyTest(int num_bodies) {
         double vy = random_double(-5e4, 5e4);
 
         sim_seq.addBody(mass, x, y, vx, vy);
-        sim_par.addBody(mass, x, y, vx, vy);
+
     }
+
 
     // Time sequential way
     auto start_seq = std::chrono::high_resolution_clock::now();
@@ -556,6 +553,24 @@ void runEfficiencyTest(int num_bodies) {
     auto end_seq = std::chrono::high_resolution_clock::now();
     double time_seq = std::chrono::duration<double>(end_seq - start_seq).count();
 
+    std::cout << "=== Efficiency Report ===" << std::endl;
+    std::cout << "Sequential time: " << time_seq << " s" << std::endl;
+
+    while (num_threads <= 128) { // To see which number of threads is better depending on N bodies ||| TESTING ONLY |||
+
+    NBodySimulation sim_par(G, dt);
+
+    for (int i = 0; i < num_bodies; ++i) {
+        double mass = random_double(1e20, 1e28);
+        double x = random_double(-1e12, 1e12);
+        double y = random_double(-1e12, 1e12);
+        double vx = random_double(-5e4, 5e4);
+        double vy = random_double(-5e4, 5e4);
+
+        sim_par.addBody(mass, x, y, vx, vy);
+    }
+
+
     // Time parallel way
     auto start_par = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < steps; ++i) {
@@ -564,11 +579,14 @@ void runEfficiencyTest(int num_bodies) {
     auto end_par = std::chrono::high_resolution_clock::now();
     double time_par = std::chrono::duration<double>(end_par - start_par).count();
 
-    std::cout << "=== Efficiency Report ===" << std::endl;
-    std::cout << "Sequential time: " << time_seq << " s" << std::endl;
     std::cout << "Parallel time (" << num_threads << " threads): " << time_par << " s" << std::endl;
-    std::cout << "Speedup: " << time_seq / time_par << "x" << std::endl;
-    num_threads *= 2;
+    std::cout << "Speedup (" << num_threads << " threads) : " << time_seq / time_par << "x" << std::endl;
+    if (num_threads < 16){
+        ++num_threads;
+    } else {
+        num_threads *= 2;
+    }
+
 }
 }
 
