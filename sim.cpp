@@ -22,7 +22,7 @@ void compute_draw_data(std::vector<Body>& bodies, std::vector<DrawData>& data, s
     for (size_t i = start; i < end; i++){
         data[i].x = (width / 2 + bodies[i].x / 1e9 + offset_x) * zoom_factor;
         data[i].y = (height / 2 + bodies[i].y / 1e9 + offset_y) * zoom_factor;
-        data[i].rad = (2.0 + 4.0 * (std::log10(bodies[i].mass) - 20.0) / 5.0) * zoom_factor;
+        data[i].rad = (8.0 + std::log10(bodies[i].mass) - 20.0) * zoom_factor;
         data[i].r = bodies[i].r;
         data[i].g = bodies[i].g;   
         data[i].b = bodies[i].b;
@@ -117,7 +117,7 @@ class SimulationArea: public Gtk::DrawingArea { // Used AI (not extensively) to 
                 cr->set_source_rgb(body.r, body.g, body.b);
                 double scaled_x = (width / 2 + body.x / 1e9 + offset_x) * zoom_factor;
                 double scaled_y = (height / 2 + body.y / 1e9 + offset_y) * zoom_factor;
-                cr->arc(scaled_x, scaled_y, (2.0 + 4.0 * (std::log10(body.mass) - 20.0) / 5.0) * zoom_factor, 0, 2 * G_PI); // Scaled size based on mass
+                cr->arc(scaled_x, scaled_y, (8.0 + std::log10(body.mass) - 20.0) * zoom_factor, 0, 2 * G_PI); // Scaled size based on mass
                 cr->fill();
             }
         }
