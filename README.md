@@ -29,6 +29,9 @@ Run the simulation as follows:
   - **`./nbody -eff N`** to test efficiency with N random bodies
   - **`./nbody -help`** to see all call options
 
+## Simulation Preview
+![Simulation](gifs/solarsys.gif)
+
 ## GUI Controls and Interactive Features
 
 Once the simulation window opens, you can interact with the system in real time using:
