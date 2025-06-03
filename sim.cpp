@@ -655,9 +655,9 @@ int main(int argc, char *argv[]) {
         std::cout << "Options:" << std::endl;
         std::cout << "  |  -sim1       Solar System Simulation (DEFAULT)" << std::endl;
         std::cout << "  |  -sim3       3 Body Simulation" << std::endl;
-        std::cout << "  |  -sim6       [BROKEN] 6 Body Simulation" << std::endl;
+        std::cout << "  |  -sim6       6 Body Simulation" << std::endl;
         std::cout << "  |  -rand N     Simulation with N random bodies" << std::endl;
-        std::cout << "  |  -comp       Accuracy test for the parallel approach using position relative error on 100 random bodies" << std::endl;
+        std::cout << "  |  -comp       Accuracy test for parallel approach using position relative error-100 random bodies" << std::endl;
         std::cout << "  |  -eff N      Efficiency test with N random bodies" << std::endl;
         std::cout << "  |  -help       Show this Help" << std::endl;
         return 0;
