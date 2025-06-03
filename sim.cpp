@@ -470,15 +470,9 @@ class MainWindow: public Gtk::Window {  // Used AI (not extensively) to help und
         }
 };
 
-//Test the accuracy of the parallel approach
-void runComparison() {
-    const double G = 6.67430e-11;
-    const double dt = 10000;
-    const size_t num_threads = 32;
 
-    NBodySimulation sim_seq(G, dt);
-    NBodySimulation sim_par(G, dt);
-
+std::vector<Body> gen_sys(){
+    std::vector<Body> bodies;
     // Add random bodies
     for (int i = 0; i < 100; ++i) {
         double mass = random_double(1e22, 1e27);
@@ -488,13 +482,33 @@ void runComparison() {
         double g = random_double(0.0, 1.0);
         double b = random_double(0.0, 1.0);
 
-        sim_seq.addBody(mass, x, 0.0, 0.0, vy, r, g, b);
-        sim_par.addBody(mass, x, 0.0, 0.0, vy, r, g, b);
+        bodies.push_back({mass, x, 0.0, 0.0, vy, r, g, b});
     }
 
+    return bodies;
+}
+
+//Test the accuracy of the parallel approach
+void runComparison(std::vector<Body>& bodies) {
+    const double G = 6.67430e-11;
+    const double dt = 10000;
+    const size_t num_threads = 32;
+
+    for (double th = 0.0; th <= 1.0; th += 0.1){
+    NBodySimulation sim_seq(G, dt);
+    NBodySimulation sim_par(G, dt);
+
+    std::vector<Body> bs = bodies;
+
+    // Add random bodies
+    for (const auto& body : bs) {
+        sim_seq.addBody(body);
+        sim_par.addBody(body);
+    }    
+    std::cout << "Barnes-Hut theta: " << th << "\n";
     for (int step = 0; step <= 1000; ++step) {
         sim_seq.stepSequential();
-        sim_par.stepParallel(num_threads);
+        sim_par.stepParallel(num_threads, th);
 
         if (step % 100 == 0) {
             const auto& bodies_seq = sim_seq.getBodies();
@@ -507,6 +521,7 @@ void runComparison() {
             std::cout << "----------------------------------------\n";
         }
     }
+}
 
 }
 
@@ -664,7 +679,8 @@ int main(int argc, char *argv[]) {
     }
     
     if (run_comp) {
-        runComparison();
+        std::vector<Body> bodies = gen_sys();
+        runComparison(bodies);
         return 0;
     }
     if (run_efficiency) {

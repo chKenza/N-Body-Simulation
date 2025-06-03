@@ -53,6 +53,8 @@ public:
 
     void addBody(double mass, double x, double y, double vx, double vy, double r = 1.0, double g = 1.0, double b = 1.0);
 
+    void addBody(Body body);
+
     void clear();
     
     void setTimeStep(double new_dt);
@@ -92,12 +94,13 @@ public:
     void updatePositionsParallel(size_t num_threads);
 
     void stepSequential();
-    void stepParallel(size_t num_threads);
+
+    void stepParallel(size_t num_threads, double theta = 0.5); // Barnes-Hut parameter
 
     const std::vector<Body>& getBodies() const;
 
     void ComputeForceBarnesHut(Body& b, const QuadNode& node, double G, double theta);
-    void ComputeForcesParallelBarnesHut(size_t num_threads);
+    void ComputeForcesParallelBarnesHut(size_t num_threads, double theta);
     void ComputeForcesThreadBarnesHut(
         Body* bodies,
         size_t start,

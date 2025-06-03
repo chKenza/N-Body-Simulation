@@ -30,6 +30,12 @@ void NBodySimulation::addBody(double mass, double x, double y, double vx, double
     bodies.push_back(body);
 }
 
+void NBodySimulation::addBody(Body body) {
+    body.fx = 0.0;
+    body.fy = 0.0;
+    bodies.push_back(body);
+}
+
 void NBodySimulation::clear() {
     bodies.clear();
 }
@@ -305,17 +311,19 @@ void NBodySimulation::updatePositionsParallel(size_t num_threads) {
     }
 }
 
+
+
 // one step of the simulation
 void NBodySimulation::stepSequential() {
     computeForces();
     updatePositionsSeq();
 }
 
-void NBodySimulation::stepParallel(size_t num_threads) {
+void NBodySimulation::stepParallel(size_t num_threads, double theta) {
     // change to computeForcesParallelAtomic(num_threads) to use the atomic parallel approach
     // change to computeForcesParallelNonAtomic(num_threads) to use the non atomic parallel approach
-    // chage to ComputeForcesParallelBarnesHut(size_t num_threads) to use the Barnes Hut algorithm
-    computeForcesParallelAtomic(num_threads);
+    // change to ComputeForcesParallelBarnesHut(size_t num_threads, double theta) to use the Barnes Hut algorithm
+    ComputeForcesParallelBarnesHut(num_threads, theta);
     updatePositionsParallel(num_threads);
 }
 
@@ -476,7 +484,7 @@ void NBodySimulation::ComputeForcesThreadBarnesHut(
     }
 }
 
-void NBodySimulation::ComputeForcesParallelBarnesHut(size_t num_threads) {
+void NBodySimulation::ComputeForcesParallelBarnesHut(size_t num_threads, double theta) {
     size_t N = bodies.size();
     if (N == 0){
         return; 
@@ -508,7 +516,7 @@ void NBodySimulation::ComputeForcesParallelBarnesHut(size_t num_threads) {
         root.insert(&b);
     }
 
-    double theta = 0.5; // Make smaller to increase accuracy, make bigger to increase speedup
+    // double theta = 0.5; // Make smaller to increase accuracy, make bigger to increase speedup
     std::vector<std::thread> workers(num_threads - 1);
     size_t start_block = 0;
     for (size_t i = 0; i < num_threads -1; ++i) {
