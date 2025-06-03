@@ -512,9 +512,13 @@ void NBodySimulation::ComputeForcesParallelBarnesHut(size_t num_threads, double 
     QuadNode root(root_region);
 
     //Build tree
-    for (auto& b : bodies) {
-        root.insert(&b);
-    }
+
+    // sequential 
+    //for (auto& b : bodies) {
+    //    root.insert(&b);
+    //}
+    // parallel
+    buildTreeParallel(num_threads, root);
 
     // double theta = 0.5; // Make smaller to increase accuracy, make bigger to increase speedup
     std::vector<std::thread> workers(num_threads - 1);
@@ -540,4 +544,101 @@ void NBodySimulation::ComputeForcesParallelBarnesHut(size_t num_threads, double 
     }
     
 
+}
+
+
+// Parallel tree construction
+
+void QuadNode::insertmutex(Body* b) {
+    // No insertion if body is outside this node's region
+    if (!region.contains(b->x, b->y)) return;
+    
+    std::unique_lock<std::mutex> lock(node_mutex);
+    
+    // First body to be inserted
+    if (!body && isExternal()) {
+        // store and set center of mass
+        body = b;
+        mass = b->mass;
+        com_x = b->x;
+        com_y = b->y;
+        return;
+    }
+
+    // If the node already contains a body, we subdivide
+    if (isExternal()) {
+        Body* existing = body;
+        body = nullptr;
+        
+        // Create the four child quadrants
+        NW = std::make_unique<QuadNode>(region.NW());
+        NE = std::make_unique<QuadNode>(region.NE());
+        SW = std::make_unique<QuadNode>(region.SW());
+        SE = std::make_unique<QuadNode>(region.SE());
+
+        // Unlock
+        lock.unlock();
+        
+        // Reinsert the existing body into one of the children
+        if (NW->region.contains(existing->x, existing->y)) NW->insertmutex(existing);
+        else if (NE->region.contains(existing->x, existing->y)) NE->insertmutex(existing);
+        else if (SW->region.contains(existing->x, existing->y)) SW->insertmutex(existing);
+        else if (SE->region.contains(existing->x, existing->y)) SE->insertmutex(existing);
+        
+        // Insert the new body
+        if (NW->region.contains(b->x, b->y)) NW->insertmutex(b);
+        else if (NE->region.contains(b->x, b->y)) NE->insertmutex(b);
+        else if (SW->region.contains(b->x, b->y)) SW->insertmutex(b);
+        else if (SE->region.contains(b->x, b->y)) SE->insertmutex(b);
+        
+        // Lock
+        lock.lock();
+    } else {
+        // Unlock
+        lock.unlock();
+        // Insert the new body
+        if (NW->region.contains(b->x, b->y)) NW->insertmutex(b);
+        else if (NE->region.contains(b->x, b->y)) NE->insertmutex(b);
+        else if (SW->region.contains(b->x, b->y)) SW->insertmutex(b);
+        else if (SE->region.contains(b->x, b->y)) SE->insertmutex(b);
+        // Lock
+        lock.lock();
+    }
+
+    // Update center of mass
+    double new_mass = mass + b->mass;
+    com_x = (com_x * mass + b->x * b->mass) / new_mass;
+    com_y = (com_y * mass + b->y * b->mass) / new_mass;
+    mass = new_mass;
+}
+
+
+
+void NBodySimulation::insertBodiesThread(size_t start, size_t end, QuadNode& root) {
+    for (size_t i = start; i < end; ++i) {
+        root.insertmutex(&bodies[i]);
+    }
+}
+
+void NBodySimulation::buildTreeParallel(size_t num_threads, QuadNode& root) {
+    size_t N = bodies.size();
+    if (N == 0) {
+        return;
+    }
+
+    size_t block_size = (N + num_threads - 1) / num_threads;
+    std::vector<std::thread> workers(num_threads - 1);
+
+    size_t start_block = 0;
+    for (size_t i = 0; i < num_threads - 1; ++i) {
+        size_t end_block = std::min(start_block + block_size, N);
+        workers[i] = std::thread(&NBodySimulation::insertBodiesThread, this, start_block, end_block, std::ref(root));
+        start_block = end_block;
+    }
+
+    insertBodiesThread(start_block, N, root);
+
+    for (size_t i = 0; i < workers.size(); ++i) {
+        workers[i].join();
+    }
 }
