@@ -30,7 +30,21 @@ Run the simulation as follows:
   - **`./nbody -help`** to see all call options
 
 ## Simulation Preview
-![Simulation](gifs/solarsys.gif)
+
+### Solar System
+![Sim](gifs/solarsys.gif)
+
+### 3-Body Triangle
+![Sim](gifs/3bod.gif)
+
+### 6-Body Hexagon
+![Sim](gifs/6bod.gif)
+
+### 50 Random Bodies
+![Sim](gifs/rand50.gif)
+
+### 500 Random Bodies
+![Sim](gifs/rand500.gif)
 
 ## GUI Controls and Interactive Features
 
