@@ -42,19 +42,19 @@ Once the simulation window opens, you can interact with the system in real time 
 ## Simulation Preview
 
 ### Solar System
-![Sim](gifs/solarsys.gif)
+![Sim](gifs/solarsysv2.gif)
 
 ### 3-Body Triangle
-![Sim](gifs/3bod.gif)
+![Sim](gifs/3bodv2.gif)
 
 ### 6-Body Hexagon
-![Sim](gifs/6bod.gif)
+![Sim](gifs/6bodv2.gif)
 
 ### 50 Random Bodies
-![Sim](gifs/rand50.gif)
+![Sim](gifs/rand50v2.gif)
 
 ### 500 Random Bodies
-![Sim](gifs/rand500.gif)
+![Sim](gifs/rand500v2.gif)
 
 ### 5000 Random Bodies
 ![Sim](gifs/rand5k.gif)
