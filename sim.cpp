@@ -22,7 +22,7 @@ void compute_draw_data(std::vector<Body>& bodies, std::vector<DrawData>& data, s
     for (size_t i = start; i < end; i++){
         data[i].x = (width / 2 + bodies[i].x / 1e9 + offset_x) * zoom_factor;
         data[i].y = (height / 2 + bodies[i].y / 1e9 + offset_y) * zoom_factor;
-        data[i].rad = (8.0 + std::log10(bodies[i].mass) - 20.0) * zoom_factor;
+        data[i].rad = (2.0 + 4.0 * (std::log10(bodies[i].mass) - 20.0) / 5.0) * zoom_factor;
         data[i].r = bodies[i].r;
         data[i].g = bodies[i].g;   
         data[i].b = bodies[i].b;
@@ -117,7 +117,7 @@ class SimulationArea: public Gtk::DrawingArea { // Used AI (not extensively) to 
                 cr->set_source_rgb(body.r, body.g, body.b);
                 double scaled_x = (width / 2 + body.x / 1e9 + offset_x) * zoom_factor;
                 double scaled_y = (height / 2 + body.y / 1e9 + offset_y) * zoom_factor;
-                cr->arc(scaled_x, scaled_y, (8.0 + std::log10(body.mass) - 20.0) * zoom_factor, 0, 2 * G_PI); // Scaled size based on mass
+                cr->arc(scaled_x, scaled_y, (2.0 + 4.0 * (std::log10(body.mass) - 20.0) / 5.0) * zoom_factor, 0, 2 * G_PI); // Scaled size based on mass
                 cr->fill();
             }
         }
@@ -473,28 +473,29 @@ class MainWindow: public Gtk::Window {  // Used AI (not extensively) to help und
 
 std::vector<Body> gen_sys(){
     std::vector<Body> bodies;
-    // Add random bodies
-    for (int i = 0; i < 100; ++i) {
-        double mass = random_double(1e22, 1e27);
-        double x = random_double(1e10, 1e12);
-        double vy = random_double(1e3, 1e4);
-        double r = random_double(0.0, 1.0);
-        double g = random_double(0.0, 1.0);
-        double b = random_double(0.0, 1.0);
-
-        bodies.push_back({mass, x, 0.0, 0.0, vy, r, g, b});
-    }
+    // Solar system
+    bodies.push_back({1.989e30, 0.0, 0.0, 0.0, 0.0, 1.0, 0.84, 0.0});
+    bodies.push_back({3.285e23, 5.79e10, 0.0, 0.0, 47400.0, 0.55, 0.53, 0.52});
+    bodies.push_back({4.867e24, 1.082e11, 0.0, 0.0, 35000.0, 0.90, 0.75, 0.35});
+    bodies.push_back({5.972e24, 1.496e11, 0.0, 0.0, 29800.0, 0.0, 0.5, 1.0});
+    bodies.push_back({6.39e23, 2.279e11, 0.0, 0.0, 24100.0, 0.8, 0.3, 0.1});
+    bodies.push_back({1.898e27, 7.785e11/2, 0.0, 0.0, 13070.0, 0.85, 0.52, 0.35});
+    bodies.push_back({5.683e26, 1.433e12/2, 0.0, 0.0, 9690.0, 0.93, 0.82, 0.62});
+    bodies.push_back({8.681e25, 2.877e12/2, 0.0, 0.0, 6810.0, 0.65, 0.85, 0.88});
+    bodies.push_back({1.024e26, 4.503e12/2, 0.0, 0.0, 5430.0, 0.25, 0.41, 0.88});
 
     return bodies;
 }
 
-//Test the accuracy of the parallel approach
-void runComparison(std::vector<Body>& bodies) {
+//Test the accuracy of Barnes-Hut algorithm for different thetas
+// If you want to run run this, you can uncomment the following function and comment out the next one, then run ./nbody -comp
+//you also need to make a slight change in line 744
+/*void runComparison(std::vector<Body>& bodies) {
     const double G = 6.67430e-11;
     const double dt = 10000;
     const size_t num_threads = 16;
 
-    for (double th = 0.0; th <= 1.0; th += 0.02){
+    for (double th = 0.0; th <= 1.05; th += 0.05){
     NBodySimulation sim_seq(G, dt);
     NBodySimulation sim_par(G, dt);
 
@@ -509,7 +510,7 @@ void runComparison(std::vector<Body>& bodies) {
         sim_seq.stepSequential();
         sim_par.stepParallel(num_threads, th);
 
-        if (step == 100 || step == 500 || step == 1000) {
+        if (step == 100 || step == 1000) {
             const auto& bodies_seq = sim_seq.getBodies();
             const auto& bodies_par = sim_par.getBodies();
             double error = 0.0;
@@ -521,6 +522,47 @@ void runComparison(std::vector<Body>& bodies) {
         }
     }
 }
+
+}
+*/
+
+//Test the accuracy of the parallel approach
+void runComparison() {
+    const double G = 6.67430e-11;
+    const double dt = 10000;
+    const size_t num_threads = 32;
+
+    NBodySimulation sim_seq(G, dt);
+    NBodySimulation sim_par(G, dt);
+
+    // Add random bodies
+    for (int i = 0; i < 100; ++i) {
+        double mass = random_double(1e22, 1e27);
+        double x = random_double(1e10, 1e12);
+        double vy = random_double(1e3, 1e4);
+        double r = random_double(0.0, 1.0);
+        double g = random_double(0.0, 1.0);
+        double b = random_double(0.0, 1.0);
+
+        sim_seq.addBody(mass, x, 0.0, 0.0, vy, r, g, b);
+        sim_par.addBody(mass, x, 0.0, 0.0, vy, r, g, b);
+    }
+
+    for (int step = 0; step <= 1000; ++step) {
+        sim_seq.stepSequential();
+        sim_par.stepParallel(num_threads);
+
+        if (step % 100 == 0) {
+            const auto& bodies_seq = sim_seq.getBodies();
+            const auto& bodies_par = sim_par.getBodies();
+            double error = 0.0;
+            PositionRelativeError(bodies_seq, bodies_par, error);
+
+            std::cout << "Step " << step << ":\n";
+            std::cout << "Position Relative Error: " << error << "\n";
+            std::cout << "----------------------------------------\n";
+        }
+    }
 
 }
 
@@ -581,8 +623,10 @@ void runEfficiencyTest(int num_bodies) {
 
     std::cout << "Parallel time (" << num_threads << " threads): " << time_par << " s" << std::endl;
     std::cout << "Speedup (" << num_threads << " threads) : " << time_seq / time_par << "x" << std::endl;
-    if (num_threads < 16){
+    if (num_threads < 4){
         ++num_threads;
+    } else if (num_threads < 16 && num_threads >=4){
+        num_threads += 2;
     } else {
         num_threads *= 2;
     }
@@ -690,7 +734,7 @@ int main(int argc, char *argv[]) {
         std::cout << "  |  -sim3       3 Body Simulation" << std::endl;
         std::cout << "  |  -sim6       6 Body Simulation" << std::endl;
         std::cout << "  |  -rand N     Simulation with N random bodies" << std::endl;
-        std::cout << "  |  -comp       Accuracy test for parallel approach using position relative error-100 random bodies" << std::endl;
+        std::cout << "  |  -comp       Accuracy test for parallel approach using position relative error - 100 random bodies" << std::endl;
         std::cout << "  |  -eff N      Efficiency test with N random bodies" << std::endl;
         std::cout << "  |  -help       Show this Help" << std::endl;
         return 0;
@@ -698,7 +742,8 @@ int main(int argc, char *argv[]) {
     
     if (run_comp) {
         std::vector<Body> bodies = gen_sys();
-        runComparison(bodies);
+        // change to runComparison(bodies) if you want to run the accuracy analysis of the Barnes Hut algorithm using different thetas
+        runComparison();
         return 0;
     }
     if (run_efficiency) {
