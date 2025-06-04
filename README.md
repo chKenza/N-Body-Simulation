@@ -55,3 +55,6 @@ Once the simulation window opens, you can interact with the system in real time 
 
 ### 500 Random Bodies
 ![Sim](gifs/rand500.gif)
+
+### 5000 Random Bodies
+![Sim](gifs/rand5k.gif)
